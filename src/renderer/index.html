@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Down Range Campaign Command</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark">DR</div>
+      <div><strong>DOWN RANGE</strong><span>CAMPAIGN COMMAND</span></div>
+    </div>
+    <nav id="nav">
+      <button class="nav-item active" data-view="overview"><span>⌖</span> Operational picture</button>
+      <button class="nav-item" data-view="mission"><span>◆</span> Mission package</button>
+      <button class="nav-item" data-view="tactical"><span>▣</span> Tactical battle</button>
+      <button class="nav-item" data-view="mcpp"><span>◫</span> MCPP planning wizard</button>
+      <button class="nav-item" data-view="forces"><span>▦</span> Force status</button>
+      <button class="nav-item" data-view="logistics"><span>▤</span> Logistics & medical</button>
+      <button class="nav-item" data-view="intel"><span>◎</span> Intelligence</button>
+      <button class="nav-item" data-view="aar"><span>✓</span> After action</button>
+      <button class="nav-item" data-view="history"><span>≡</span> Campaign history</button>
+      <button class="nav-item" data-view="library"><span>▱</span> Field library</button>
+    </nav>
+    <div class="rail-bottom">
+      <div class="version">DOWN RANGE v1.4.2<br><span>Offline campaign layer</span></div>
+      <button class="icon-button" id="exportBtn" title="Export campaign">⇧</button>
+      <button class="icon-button" id="importBtn" title="Import campaign">⇩</button>
+      <button class="icon-button" id="mapsKeyBtn" title="Google Maps key">⌘</button>
+    </div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div>
+        <div class="eyebrow" id="viewEyebrow">OPERATIONAL PICTURE</div>
+        <h1 id="viewTitle">Operation Iron Lantern</h1>
+      </div>
+      <div class="top-status">
+        <div><span>CAMPAIGN TURN</span><strong id="turnValue">01</strong></div>
+        <div><span>LOCAL DATE</span><strong id="dateValue">14 SEP 2031</strong></div>
+        <div class="save-state"><i></i><span id="saveState">SAVED LOCALLY</span></div>
+      </div>
+    </header>
+    <section id="content" class="content"></section>
+  </main>
+  <div id="toast" class="toast"></div>
+  <dialog id="modal"><form method="dialog" id="modalForm"><div id="modalBody"></div></form></dialog>
+  <script src="tactical-rules.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "name": "down-range-campaign-command",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline Electron campaign command console for Down Range",
+  "main": "src/main.cjs",
+  "type": "commonjs",
+  "scripts": {
+    "start": "set \"ELECTRON_RUN_AS_NODE=\" && electron .",
+    "test": "node --test tests/*.test.cjs",
+    "check": "node --check src/main.cjs && node --check src/preload.cjs && node --check src/renderer/app.js && npm test",
+    "unity:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-unity.ps1",
+    "dist": "electron-builder --win nsis",
+    "dist:dir": "electron-builder --win dir"
+  },
+  "devDependencies": {
+    "electron": "^37.1.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.peterrobbins.downrange.campaign",
+    "productName": "Down Range Campaign Command",
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "data/**/*", "docs/**/*", "assets/**/*", "scenarios/**/*", "package.json", "README.md"],
+    "extraResources": [{ "from": "unity-tactical/Build", "to": "unity-tactical", "filter": ["**/*", "!runtime-smoke.log", "!visual-smoke/**/*", "!**/battle-state.json"] }],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

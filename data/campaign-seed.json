@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 4,
+  "campaign": {
+    "name": "Operation Iron Lantern",
+    "slug": "operation-iron-lantern",
+    "theater": "Kārsava–Malnava Corridor, Latgale, Latvia",
+    "date": "2031-09-14",
+    "turn": 1,
+    "phase": "Intelligence & Reconnaissance",
+    "momentum": 0,
+    "tempo": "Contested",
+    "weather": "Overcast · 14°C · light rain · visibility 1,200 m",
+    "lastUpdated": "2026-08-08T12:00:00.000Z",
+    "map": { "center": { "lat": 56.785, "lng": 27.68 }, "zoom": 11, "type": "terrain" },
+    "intent": {
+      "purpose": "Break enemy control of the Kārsava–Malnava corridor and open the A13 for follow-on forces.",
+      "method": "Isolate corridor strongpoints through reconnaissance, interdiction, and targeted raids before committing the platoon to decisive action.",
+      "endState": "The A13 corridor is secure, enemy maneuver forces cannot interfere, and Task Force Lantern retains combat power for follow-on operations."
+    }
+  },
+  "locations": [
+    { "id": "hill402", "name": "Nūmerne Heights", "x": 26, "y": 18, "lat": 56.842, "lng": 27.5, "control": "contested", "terrain": "Wooded lake country / low ridges", "value": 3, "property": "+1 ISR when controlled", "intel": "Intermittent thermal signatures along the eastern treeline." },
+    { "id": "radio", "name": "Grebņeva Relay", "x": 72, "y": 16, "lat": 56.856, "lng": 27.835, "control": "enemy", "terrain": "Fictional relay compound / border approaches", "value": 3, "property": "Enemy EW hub", "intel": "Probable jamming and direction-finding detachment near the border corridor." },
+    { "id": "farm", "name": "Salnava Farmland", "x": 25, "y": 44, "lat": 56.81449, "lng": 27.55315, "control": "contested", "terrain": "Fields / woodland / drainage", "value": 1, "property": "Concealed western approach", "intel": "Civilian movement by daylight; armed patrols after dusk." },
+    { "id": "village", "name": "Kārsava", "x": 69, "y": 43, "lat": 56.78688, "lng": 27.68175, "control": "enemy", "terrain": "Small town / rail and road approaches", "value": 3, "property": "Corridor population center", "intel": "Estimated platoon defense. One armored vehicle observed." },
+    { "id": "mine", "name": "Bozova Railhead", "x": 27, "y": 68, "lat": 56.81361, "lng": 27.69528, "control": "unknown", "terrain": "Freight railway / scattered buildings", "value": 2, "property": "Potential logistics node", "intel": "Unconfirmed nighttime freight activity. Local reports are contradictory." },
+    { "id": "highway", "name": "Malnava A13 Junction", "x": 69, "y": 67, "lat": 56.77333, "lng": 27.72333, "control": "enemy", "terrain": "Highway / village edge / open fields", "value": 3, "property": "+1 resupply when secured", "intel": "Checkpoints and irregular vehicle traffic on the A13." },
+    { "id": "crossing", "name": "Pudinava Dam", "x": 69, "y": 84, "lat": 56.71475, "lng": 27.7278, "control": "contested", "terrain": "Dam / wet ground / village approaches", "value": 2, "property": "Southern corridor choke point", "intel": "Crossing intact; northern approach under observation." },
+    { "id": "fob", "name": "FOB Mežvidi", "x": 69, "y": 96, "lat": 56.69995, "lng": 27.56455, "control": "friendly", "terrain": "Fictional base / rural road network", "value": 3, "property": "Friendly supply source", "intel": "Secure." }
+  ],
+  "links": [["hill402","radio"],["hill402","farm"],["radio","village"],["farm","village"],["farm","mine"],["village","highway"],["mine","highway"],["highway","crossing"],["crossing","fob"]],
+  "forces": [
+    { "id": "hq", "name": "Platoon HQ", "type": "Command", "current": 4, "authorized": 4, "readiness": 100, "ammo": "Full", "assets": "2× radios, medic", "status": "Available" },
+    { "id": "sq1", "name": "1st Squad", "type": "Infantry", "current": 9, "authorized": 9, "readiness": 100, "ammo": "Full", "assets": "M249, M320", "status": "Available" },
+    { "id": "sq2", "name": "2nd Squad", "type": "Infantry", "current": 9, "authorized": 9, "readiness": 100, "ammo": "Full", "assets": "M249, MAAWS", "status": "Available" },
+    { "id": "sq3", "name": "3rd Squad", "type": "Infantry", "current": 8, "authorized": 9, "readiness": 86, "ammo": "Full", "assets": "M249, M320", "status": "1 WIA-L" },
+    { "id": "weapons", "name": "Weapons Team", "type": "Support", "current": 4, "authorized": 4, "readiness": 100, "ammo": "Full", "assets": "2× M240", "status": "Available" },
+    { "id": "mortar", "name": "Mortar Team", "type": "Fires", "current": 3, "authorized": 3, "readiness": 100, "ammo": "6 bombs", "assets": "60 mm mortar", "status": "Available" },
+    { "id": "uas", "name": "UAS Team", "type": "ISR", "current": 2, "authorized": 2, "readiness": 100, "ammo": "—", "assets": "2× quadcopter", "status": "Available" }
+  ],
+  "supply": [
+    { "id": "replacements", "name": "Personnel replacements", "current": 3, "max": 8, "unit": "troops" },
+    { "id": "at", "name": "AT rounds", "current": 6, "max": 10, "unit": "rounds" },
+    { "id": "mortar", "name": "60 mm bombs", "current": 18, "max": 24, "unit": "bombs" },
+    { "id": "uas", "name": "Small UAS", "current": 3, "max": 4, "unit": "airframes" },
+    { "id": "medical", "name": "Trauma sets", "current": 4, "max": 5, "unit": "sets" },
+    { "id": "precision", "name": "Precision fires", "current": 2, "max": 3, "unit": "missions" },
+    { "id": "ew", "name": "EW support", "current": 1, "max": 2, "unit": "allocations" },
+    { "id": "vehicles", "name": "Vehicle replacements", "current": 1, "max": 2, "unit": "vehicles" }
+  ],
+  "casualties": [
+    { "id": "c1", "name": "PFC Rowan", "unit": "3rd Squad", "category": "WIA-L", "returnTurn": 2, "note": "Fragment wound; ambulatory." }
+  ],
+  "intel": [
+    { "id": "i1", "grade": "B2", "title": "Radio site emissions", "detail": "Direction finding places a persistent emitter in the northern compound. Likely company-level EW support.", "age": "4 hours", "confidence": "High" },
+    { "id": "i2", "grade": "C3", "title": "Kārsava garrison", "detail": "Approximately one platoon occupies the Kārsava road and rail approaches. One IFV or APC seen under camouflage.", "age": "11 hours", "confidence": "Medium" },
+    { "id": "i3", "grade": "D4", "title": "Bozova freight activity", "detail": "A local source reports nighttime deliveries near the railhead. No imagery confirms the claim.", "age": "2 days", "confidence": "Low" },
+    { "id": "i4", "grade": "B3", "title": "Enemy UAS pattern", "detail": "Small quadcopter launches occur near the highway checkpoint around civil twilight.", "age": "1 day", "confidence": "Medium" }
+  ],
+  "mission": {
+    "number": 1,
+    "title": "Silent Lantern",
+    "type": "Reconnaissance",
+    "status": "planning",
+    "locationId": "hill402",
+    "time": "2031-09-14 0430L",
+    "duration": "8 tactical turns",
+    "situation": "Enemy control of the northern A13 corridor depends on the fictional Grebņeva Relay, but its security posture and approaches are unknown. Task Force Lantern must establish observation without triggering a general engagement.",
+    "intent": {
+      "purpose": "Confirm the Grebņeva Relay disposition and identify a viable approach for a follow-on raid.",
+      "method": "Infiltrate a small reconnaissance element through Salnava farmland, establish observation in the Nūmerne Heights, and map enemy security and emissions while avoiding decisive contact.",
+      "endState": "Relay strength, EW assets, and access routes are confirmed; the reconnaissance element returns with at least 75% strength; enemy alert does not rise materially."
+    },
+    "metttc": {
+      "Mission": "Reconnoiter the Nūmerne Heights and Grebņeva Relay; do not become decisively engaged.",
+      "Enemy": "Patrols, probable EW team, possible small UAS. QRF location unknown.",
+      "Terrain & Weather": "Low wooded ridges, lakes, drainage, and wet fields; overcast before dawn; reduced long-range observation.",
+      "Troops & Support": "Recommended: 4–6 troops, one UAS, optional precision-fire allocation.",
+      "Time": "Infiltrate 0430L; exfiltrate before 0615L civil traffic.",
+      "Civil Considerations": "Farm workers enter western fields near dawn. Avoid compromise and property damage."
+    },
+    "ocoka": {
+      "Observation & Fields of Fire": "The Nūmerne ridges overlook eastern approaches; the relay compound has clear arcs across nearby fields.",
+      "Cover & Concealment": "Woodlots, drainage cuts, and field boundaries provide concealed bounds from Salnava.",
+      "Obstacles": "Wet ground slows vehicles; suspected wire on compound perimeter.",
+      "Key Terrain": "Nūmerne eastern treeline; Salnava field boundaries; Grebņeva southern service approach.",
+      "Avenues of Approach": "West through woodland and farmland is concealed but civilian-sensitive; the A13 approach is fast and exposed."
+    },
+    "objectives": [
+      { "id": "o1", "text": "Observe the Grebņeva Relay for two uninterrupted turns", "points": 2, "complete": false },
+      { "id": "o2", "text": "Identify EW antenna and security element", "points": 2, "complete": false },
+      { "id": "o3", "text": "Exit at least 75% of the force from friendly edge", "points": 1, "complete": false },
+      { "id": "o4", "text": "Avoid raising the alarm", "points": 1, "complete": false }
+    ],
+    "allocation": ["1st Squad scout team (4)", "UAS Team (1 operator + 1 quadcopter)", "Platoon HQ radio operator (1)"],
+    "sync": [
+      { "phase": "Infiltration", "who": "Scout team", "what": "Move Salnava → Nūmerne treeline", "when": "Turns 1–2", "where": "Western route", "trigger": "UAS confirms route clear" },
+      { "phase": "Observation", "who": "Scout + UAS", "what": "Classify defenses and emitter", "when": "Turns 3–5", "where": "Nūmerne Heights", "trigger": "OP established" },
+      { "phase": "Exfiltration", "who": "All", "what": "Break contact to friendly edge", "when": "Turns 6–8", "where": "Salnava route", "trigger": "Collection complete or compromise" }
+    ]
+  },
+  "planning": {
+    "missionNumber": 1,
+    "currentStep": 0,
+    "completed": [],
+    "problem": {},
+    "coas": [],
+    "wargame": {},
+    "comparison": {},
+    "orders": {},
+    "transition": {}
+  },
+  "history": [
+    { "id": "h0", "turn": 0, "mission": "Campaign activation", "outcome": "Task Force Lantern deployed", "summary": "FOB Mežvidi established southwest of the A13 corridor. Enemy retains Kārsava and the Malnava junction.", "momentumDelta": 0, "timestamp": "2031-09-13T18:00:00.000Z" }
+  ],
+  "library": [
+    { "title": "Rules v1.4.2", "file": "DownRangeLatest/Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf", "category": "Core", "detail": "Complete 33-page rules" },
+    { "title": "Quick Start", "file": "DownRangeLatest/Quick Start Compressed-abf9a8e1319398ca260792e82b88c528.pdf", "category": "Core", "detail": "Two-page table reference" },
+    { "title": "One Star", "file": "DownRangeLatest/Scenario - One Star Compressed-b723cccdd93a0084aa13c126f716e6c1.pdf", "category": "Scenario", "detail": "Facilitated starter scenario" },
+    { "title": "Advanced Armor", "file": "DownRangeLatest/Armored Addendum Compressed-617a27e4519c9747b41005d25c9c39b4.pdf", "category": "Rules", "detail": "Armor, mines, recovery and repair" },
+    { "title": "Pacific Sourcebook", "file": "Pacific Sourcebook Compressed-456938ff4624f57528aaa634151dcf04.pdf", "category": "Forces", "detail": "USMC and PLANMC units" },
+    { "title": "EUCOM Sourcebook", "file": "EUCOM Sourcebook Compressed-e0057ab6c50ad015323126db45c2c602.pdf", "category": "Forces", "detail": "U.S. Army and Russian units" },
+    { "title": "Lemuria Sourcebook", "file": "DownRangeLatest/Lemuria Sourcebook Compressed-9f3e8c9621abe090fedf97bd59fc9df9.pdf", "category": "Forces", "detail": "Fictional LPM force guide" },
+    { "title": "Unit Cards (latest)", "file": "DownRangeLatest/Cards Compressed-300ff760d1a58e32171f7a1fb573e57b.pdf", "category": "Reference", "detail": "Printable unit reference cards" },
+    { "title": "Rules (archive)", "file": "Rules Compressed-83e9e71d6ced13775649d572fe956aff.pdf", "category": "Archive", "detail": "Earlier local rules copy" },
+    { "title": "Quick Start (archive)", "file": "Quick Start Compressed-2f79c8ee86feff293de23dd54e4ac755.pdf", "category": "Archive", "detail": "Earlier local quick start" },
+    { "title": "One Star (archive)", "file": "Scenario - One Star Compressed-2d9754971c52d620967d6174842ef950.pdf", "category": "Archive", "detail": "Earlier local scenario copy" },
+    { "title": "Advanced Armor (archive)", "file": "Armored Addendum Compressed-152d7e49ce07a5ae27d1770a11d213f6.pdf", "category": "Archive", "detail": "Earlier local armor copy" },
+    { "title": "Unit Cards (2025)", "file": "Cards Compressed-7803c96954a69b8d993b2b4abbb21e60.pdf", "category": "Archive", "detail": "Archived reference cards" },
+    { "title": "Unit Cards (2026-01)", "file": "Cards Compressed-8105acb5abaeddb8c5555926cb357d96.pdf", "category": "Archive", "detail": "Archived reference cards" },
+    { "title": "Lemuria (archive)", "file": "Lemuria Sourcebook Compressed-a021e5070a3f95bd9189e1315dd4724a.pdf", "category": "Archive", "detail": "Earlier local sourcebook" },
+    { "title": "First Battle of the Next War", "file": "230109_Cancian_FirstBattle_NextWar.pdf", "category": "Research", "detail": "Campaign background reading" },
+    { "title": "Akron ROTC Tactics", "file": "Tactics/AkronROTC_TacticsClass.pdf", "category": "Tactics", "detail": "Tactical instruction" },
+    { "title": "Introduction to Tactics I", "file": "Tactics/IntroToTacticsI.pdf", "category": "Tactics", "detail": "Tactics reference, part I" },
+    { "title": "Introduction to Tactics II", "file": "Tactics/IntroToTacticsII.pdf", "category": "Tactics", "detail": "Tactics reference, part II" },
+    { "title": "Unity of Command II Manual", "file": "DownRangeLatest/Manual_-_Unity_of_Command_II_-_Revision_9.pdf", "category": "Other", "detail": "Included from supplied PDF collection" }
+  ]
+}

@@ -1,0 +1,31 @@
+The models, cards, images, and all other 2D and 3D artwork for Down Range is copyright 2025 Nicholas Royer, and made available under the Creative Common Attribution-NonCommercial-ShareAlike 4.0 license:
+
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+In short, you are free to:
+
+    Share — copy and redistribute the material in any medium or format
+    Adapt — remix, transform, and build upon the material
+
+These freedoms cannot be revoked as long as you follow the license terms: 
+
+- You must give appropriate credit , provide a link to the license, and indicate if changes were made . You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
+-  You may not use the material for commercial purposes.
+- If you remix, transform, or build upon the material, you must distribute your contributions under the same license as the original. 
+- You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits. 
+
+If you have uses in mind that fall afoul of any of these restrictions, please contact the creator at downrangewargame.com.
+
+Additional source pages used by the One Star Unity scenario:
+
+- Small Modular Building: https://www.printables.com/model/1506672-down-range-small-modular-building
+- Medium Modular Building: https://www.printables.com/model/1506678-down-range-medium-modular-building
+- USMC EW Operator: https://www.printables.com/model/1548802-down-range-usmc-ew-operator
+- LPM Rifleman: https://www.printables.com/model/1500204-down-range-lpm-rifleman
+- LPM Mortar Team: https://www.printables.com/model/1500207-down-range-lpm-mortar-team
+- LPM Officer: https://www.printables.com/model/1500206-down-range-lpm-officer
+- LPM Automatic Rifleman: https://www.printables.com/model/1500220-down-range-lpm-automatic-rifleman
+
+The modular building and EW operator STL files were converted to coordinate-normalized OBJ derivatives for Unity. No commercial use is intended.
+
+The LPM Field Camo Texture and USMC Field Camo Texture are project-created derivative paint swatches informed by the palettes of the licensed Down Range miniature textures. They are applied through an object-space triplanar shader to models whose STL/3MF sources contain no authored UV or material data.

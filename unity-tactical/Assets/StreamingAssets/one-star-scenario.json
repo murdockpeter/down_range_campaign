@@ -1,0 +1,54 @@
+{
+  "id": "one-star",
+  "title": "One Star — Battle for Calloni",
+  "rulesVersion": "1.4.2",
+  "widthInches": 72,
+  "depthInches": 60,
+  "modes": [
+    { "id": "narrative", "name": "Narrative campaign", "finalRound": 12, "objective": "Seize the Grand Calloni Hotel and retain a viable Marine force through the Round 12 resolution." },
+    { "id": "hotel", "name": "Seize and hold", "finalRound": 8, "objective": "Control the Grand Calloni Hotel at the end of Round 8." },
+    { "id": "destroy", "name": "Destroy enemy forces", "finalRound": 12, "objective": "Eliminate the opposing combat force." },
+    { "id": "rescue", "name": "Rescue or rendition", "finalRound": 12, "objective": "Secure more designated high-value people than the opposing force." }
+  ],
+  "locations": [
+    { "id": "hotel", "name": "Grand Calloni Hotel", "grid": "F-6", "kind": "hotel", "description": "Six-storey objective, observation post, town hall, and primary tourist landmark.", "x": 35, "z": 29.5, "width": 11, "depth": 8.5, "floors": 6, "discoverable": true },
+    { "id": "neustadt", "name": "Neustadt Building", "grid": "H-9", "kind": "landmark", "description": "Thick-walled refuge with a randomized encounter.", "x": 43.5, "z": 41.5, "width": 9, "depth": 6, "floors": 3, "discoverable": true },
+    { "id": "barrows", "name": "The Barrows", "grid": "A-3 to D-6", "kind": "residential", "description": "Barricaded homes whose residents may reveal enemy positions.", "x": 12, "z": 25.5, "width": 16, "depth": 16, "floors": 2, "discoverable": true },
+    { "id": "police", "name": "Old Police Station", "grid": "D-4", "kind": "civic", "description": "Storm-damaged station occupied by journalists and their drone.", "x": 22.5, "z": 20.5, "width": 4.8, "depth": 5.5, "floors": 2, "discoverable": true },
+    { "id": "warehouses", "name": "Warehouse Complex", "grid": "J-4 to J-7", "kind": "warehouse", "description": "Three commercial structures including the CGCC telecommunications offices.", "x": 57, "z": 26, "width": 7, "depth": 15, "floors": 3, "discoverable": true },
+    { "id": "eight-twelve", "name": "8-Twelve", "grid": "I-10", "kind": "store", "description": "Convenience store, grocery, and base for Ako Maryese and his associates.", "x": 57, "z": 53, "width": 7, "depth": 7, "floors": 2, "discoverable": true },
+    { "id": "north-market", "name": "North Market", "grid": "F-2 to H-3", "kind": "market", "description": "Rubble-filled market with randomized LPM, civilian, or PDF contacts.", "x": 40, "z": 8.5, "width": 17, "depth": 8, "floors": 1, "discoverable": true },
+    { "id": "south-market", "name": "South Market", "grid": "F-10 to G-11", "kind": "market", "description": "Abandoned stalls subject to recurring stray mortar impacts.", "x": 39, "z": 53, "width": 13, "depth": 7, "floors": 1, "discoverable": true },
+    { "id": "shattered", "name": "Shattered Lines", "grid": "A-8 to D-12", "kind": "rubble", "description": "Entrenchments, barriers, blast craters, and an RPG-7 cache.", "x": 14, "z": 54, "width": 19, "depth": 9.5, "floors": 0, "discoverable": true },
+    { "id": "clinic", "name": "Calloni Clinic", "grid": "E-8 to F-9", "kind": "clinic", "description": "Operating clinic, medical staff, patients, and strict weapons restrictions.", "x": 34, "z": 41.5, "width": 8, "depth": 6, "floors": 2, "discoverable": true },
+    { "id": "safe-house", "name": "LPM Safe House", "grid": "K-11", "kind": "residential", "description": "Three-storey apartment concealing an LPM SOF element.", "x": 68.5, "z": 54, "width": 6, "depth": 7, "floors": 3, "discoverable": true }
+  ],
+  "timeline": [
+    { "round": 1, "title": "Insertion", "summary": "The Marine platoon enters silent Calloni from the southwest while civilians flee south." },
+    { "round": 2, "title": "Overhead", "summary": "Two unidentified quadcopters pass over the Marines; shooting or failed jamming can alert the LPM." },
+    { "round": 3, "title": "Bad omens", "summary": "Distant fighting and an approaching LPM mechanized column are reported." },
+    { "round": 4, "title": "First contact", "summary": "Militia may fire from the building west of the clinic if Marines are exposed to it." },
+    { "round": 5, "title": "The LPM arrives", "summary": "A reduced LPM light infantry platoon enters near K-1 and advances south along the warehouses." },
+    { "round": 6, "title": "An underground figure", "summary": "Ako may offer a sewer route that inserts a small Marine team into the hotel." },
+    { "round": 7, "title": "Complications", "summary": "High observers may locate LPM mortars; otherwise nearby PDF survivors reveal a contact." },
+    { "round": 8, "title": "Seek and destroy", "summary": "If alerted, LPM attack drones prioritize Marine leadership and anti-armor teams." },
+    { "round": 9, "title": "Occupied", "summary": "Hotel civilians emerge, while reconnaissance drones may cue an LPM mortar unit." },
+    { "round": 10, "title": "The other shoe drops", "summary": "Two LPM mechanized infantry squads enter near I-1 and drive toward the hotel." },
+    { "round": 11, "title": "Last call", "summary": "Unengaged LPM elements rush to deny Marine entry to the hotel." },
+    { "round": 12, "title": "Victory and death", "summary": "A third ZBL-09 arrives and control of the hotel determines the final narrative outcome." }
+  ],
+  "forces": [
+    { "id": "us-hq", "side": "blue", "name": "Platoon HQ", "role": "Command and EW", "kind": "troop", "x": 5, "z": 55, "move": 8, "arrivalRound": 1, "hidden": false },
+    { "id": "us-1", "side": "blue", "name": "First Squad", "role": "Marine rifle squad", "kind": "troop", "x": 8, "z": 56, "move": 8, "arrivalRound": 1, "hidden": false },
+    { "id": "us-2", "side": "blue", "name": "Second Squad", "role": "Marine rifle squad", "kind": "troop", "x": 5, "z": 51, "move": 8, "arrivalRound": 1, "hidden": false },
+    { "id": "us-3", "side": "blue", "name": "Third Squad", "role": "Marine rifle squad", "kind": "troop", "x": 10, "z": 52, "move": 8, "arrivalRound": 1, "hidden": false },
+    { "id": "us-weapons", "side": "blue", "name": "Weapons Detachment", "role": "Mortar and anti-armor teams", "kind": "troop", "x": 4, "z": 58, "move": 8, "arrivalRound": 1, "hidden": false },
+    { "id": "unknown-drones", "side": "neutral", "name": "Unknown Drones", "role": "Unidentified quadcopters", "kind": "uas", "x": 18, "z": 46, "move": 16, "arrivalRound": 2, "hidden": false },
+    { "id": "lpm-light", "side": "red", "name": "LPM Light Platoon", "role": "Reduced light infantry platoon", "kind": "troop", "x": 67, "z": 6, "move": 8, "arrivalRound": 5, "hidden": true },
+    { "id": "lpm-mortars", "side": "red", "name": "LPM Mortars", "role": "Mounted mortar section", "kind": "vehicle", "x": 42, "z": 7, "move": 12, "arrivalRound": 7, "hidden": true },
+    { "id": "lpm-uas", "side": "red", "name": "Attack UAS Pair", "role": "Armed unmanned systems", "kind": "uas", "x": 64, "z": 13, "move": 16, "arrivalRound": 8, "hidden": true },
+    { "id": "lpm-mech-a", "side": "red", "name": "Mechanized Squad A", "role": "ZBL-09 and infantry", "kind": "vehicle", "x": 53, "z": 4, "move": 18, "arrivalRound": 10, "hidden": false },
+    { "id": "lpm-mech-b", "side": "red", "name": "Mechanized Squad B", "role": "ZBL-09 and infantry", "kind": "vehicle", "x": 58, "z": 4, "move": 18, "arrivalRound": 10, "hidden": false },
+    { "id": "lpm-reinforcement", "side": "red", "name": "Third ZBL-09", "role": "Mechanized reinforcement", "kind": "vehicle", "x": 42, "z": 3, "move": 18, "arrivalRound": 12, "hidden": false }
+  ]
+}
