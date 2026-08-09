@@ -21,6 +21,7 @@ function terrainProfileFor(state, seed) {
     description: location.terrain || 'Mixed rural terrain', archetype: source.archetype,
     seed, gridCellSize: 1, smoothingPasses: 3, cells: [], elevation: source.elevation, treeDensity: source.treeDensity, buildingDensity: source.buildingDensity,
     water: source.water, wetGround: source.wetGround, roadPattern: source.roadPattern,
+    woodland: source.treeDensity >= 0.55 ? 'heavy' : source.treeDensity >= 0.2 ? 'light' : 'sparse',
     features: source.features.slice()
   };
 }

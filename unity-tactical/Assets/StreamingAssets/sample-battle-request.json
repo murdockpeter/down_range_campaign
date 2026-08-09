@@ -11,7 +11,7 @@
   },
   "board": {
     "mapPath": "", "widthInches": 64, "heightInches": 42.6667, "pixelsPerInch": 24,
-    "terrain": { "locationId": "hill402", "locationName": "Nūmerne Heights", "description": "Wooded lake country / low ridges", "archetype": "wooded-ridge", "seed": 142031, "gridCellSize": 1, "smoothingPasses": 3, "cells": [], "elevation": 0.9, "treeDensity": 0.72, "buildingDensity": 0.05, "water": 0.28, "wetGround": 0.42, "roadPattern": "trail", "features": ["low ridges", "dense treelines", "lake margin", "relay overlook"] }
+    "terrain": { "locationId": "hill402", "locationName": "Nūmerne Heights", "description": "Wooded lake country / low ridges", "archetype": "wooded-ridge", "seed": 142031, "gridCellSize": 1, "smoothingPasses": 3, "cells": [], "elevation": 0.9, "treeDensity": 0.72, "buildingDensity": 0.05, "water": 0.28, "wetGround": 0.42, "roadPattern": "trail", "woodland": "heavy", "features": ["low ridges", "dense treelines", "lake margin", "relay overlook"] }
   },
   "settings": { "mode": "hotseat", "seed": 142031, "autosave": true },
   "objectives": [

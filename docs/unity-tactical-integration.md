@@ -44,6 +44,8 @@ Every campaign target node maps to a deterministic terrain archetype. The tactic
 
 Current archetypes cover wooded ridge, relay compound, farmland, small town, railhead, highway junction, dam crossing, and forward base terrain.
 
+Terrain profiles also classify `woodland` as `heavy`, `light`, or `sparse`. The vegetation pass deterministically mixes broadleaf, conifer, birch/aspen, columnar young-tree, snag, and undergrowth forms. Heavy woodland clusters around seeded grove centers and uses dense-foliage blockers; light woodland keeps wider spacing and partial-concealment canopies. Trunks remain solid LOS blockers in every class.
+
 ## Imported miniatures
 
 Standard campaign battles and One Star share `ImportedMiniatureFactory`. If a unit supplies `modelId`, Unity loads that model explicitly. Otherwise the factory maps faction, role, weapon, medical skill, radio/EW capability, vehicle type, and flight status to the imported USMC, LPM, PLANMC, vehicle, or UAS library. Campaign miniatures receive selectable faction bases, separate selection and target rings, persistent movement facing, and downed/dead presentation while the C# rules continue to own unit state.

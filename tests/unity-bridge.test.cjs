@@ -22,6 +22,7 @@ test('battle request serializes campaign, board, units, weapons, and determinist
   assert.equal(request.board.terrain.gridCellSize,1);
   assert.equal(request.board.terrain.smoothingPasses,3);
   assert.equal(request.board.terrain.archetype,'wooded-ridge');
+  assert.equal(request.board.terrain.woodland,'heavy');
   assert.equal(request.units[0].modelId,'USMC Rifleman');
   assert.equal(request.units[1].facing,180);
   assert.equal(request.units[1].facingSet,true);
@@ -36,6 +37,7 @@ test('every campaign target node has a deterministic generative terrain profile'
     assert.equal(profile.locationId,location.id);
     assert.equal(profile.seed,77);
     assert.equal(profile.gridCellSize,1);
+    assert.ok(['heavy','light','sparse'].includes(profile.woodland));
     assert.ok(profile.features.length>=4);
   }
 });

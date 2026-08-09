@@ -10,7 +10,7 @@ namespace DownRange.Tactical
         public string locationId; public string locationName; public string description; public string archetype; public int seed;
         public float gridCellSize = 1f; public int smoothingPasses = 3; public TerrainCellData[] cells;
         public float elevation; public float treeDensity; public float buildingDensity; public float water; public float wetGround;
-        public string roadPattern; public string[] features;
+        public string roadPattern; public string woodland; public string[] features;
     }
     [Serializable] public class TerrainCellData { public int x; public int y; public string type; public float elevation; }
     [Serializable] public class BoardInfo { public string mapPath; public float widthInches = 64f; public float heightInches = 42.6667f; public float pixelsPerInch = 24f; public TerrainInfo terrain; }

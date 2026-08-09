@@ -217,17 +217,110 @@ namespace DownRange.Tactical
 
         void BuildVegetation()
         {
-            var count = Mathf.Clamp(Mathf.RoundToInt(profile.treeDensity * 78f), 0, 64);
-            var trunk = Material("trunks", new Color(.23f, .14f, .08f)); var foliage = Material("foliage", new Color(.17f, .34f, .19f));
+            var heavyWoods = profile.woodland == "heavy" || profile.treeDensity >= .55f;
+            var count = Mathf.Clamp(Mathf.RoundToInt(profile.treeDensity * (heavyWoods ? 96f : 82f)), 0, heavyWoods ? 76 : 58);
+            var clusterCount = heavyWoods ? Mathf.Clamp(Mathf.RoundToInt(profile.treeDensity * 10f), 4, 8) : 0;
+            var clusters = new Vector2[clusterCount];
+            for (var cluster = 0; cluster < clusterCount; cluster++) clusters[cluster] = new Vector2(Range(-board.widthInches * .42f, board.widthInches * .42f), Range(-board.heightInches * .40f, board.heightInches * .40f));
             for (var i = 0; i < count; i++)
             {
-                var x = Range(-board.widthInches * .47f, board.widthInches * .47f); var z = Range(-board.heightInches * .45f, board.heightInches * .45f);
-                if (Mathf.Abs(z - 3f) < 2.3f) continue;
-                var ground = HeightAt(x, z); var height = Range(1.7f, 3.4f);
-                var trunkObject = CreatePrimitive(PrimitiveType.Cylinder, "tree trunk", new Vector3(x, ground + height * .28f, z), new Vector3(.22f, height * .28f, .22f), trunk);
-                trunkObject.transform.localScale = new Vector3(.22f, height * .28f, .22f);
-                CreatePrimitive(PrimitiveType.Sphere, "tree crown", new Vector3(x, ground + height * .78f, z), new Vector3(1.15f, height * .38f, 1.15f), foliage);
+                float x, z;
+                if (heavyWoods && clusters.Length > 0 && random.NextDouble() < .82)
+                {
+                    var center = clusters[random.Next(clusters.Length)]; x = center.x + Range(-5.4f, 5.4f); z = center.y + Range(-4.2f, 4.2f);
+                }
+                else { x = Range(-board.widthInches * .47f, board.widthInches * .47f); z = Range(-board.heightInches * .45f, board.heightInches * .45f); }
+                x = Mathf.Clamp(x, -board.widthInches * .47f, board.widthInches * .47f); z = Mathf.Clamp(z, -board.heightInches * .45f, board.heightInches * .45f);
+                if (VegetationConflictsWithRoad(x, z)) continue;
+                var height = Range(2.0f, heavyWoods ? 4.4f : 3.8f); var speciesRoll = (float)random.NextDouble();
+                if (speciesRoll < .30f) CreateBroadleafTree(x, z, height, heavyWoods);
+                else if (speciesRoll < .56f) CreateConiferTree(x, z, height, heavyWoods);
+                else if (speciesRoll < .76f) CreateBirchTree(x, z, height, heavyWoods);
+                else if (speciesRoll < .92f) CreateColumnarTree(x, z, height, heavyWoods);
+                else CreateDeadSnag(x, z, height);
+                if (heavyWoods && i % 2 == 0) CreateUndergrowth(x + Range(-1.25f, 1.25f), z + Range(-1.1f, 1.1f), true);
+                else if (!heavyWoods && i % 7 == 0) CreateUndergrowth(x + Range(-.8f, .8f), z + Range(-.7f, .7f), false);
             }
+        }
+
+        bool VegetationConflictsWithRoad(float x, float z)
+        {
+            if (Mathf.Abs(z - 3f) < (profile.roadPattern == "service-road" ? 3.2f : 2.25f)) return true;
+            if (Mathf.Abs(x - 14f) < 1.9f) return true;
+            if ((profile.roadPattern == "street-grid" || profile.roadPattern == "junction" || profile.roadPattern == "base-loop") && Mathf.Abs(z) < 3.2f) return true;
+            if (profile.roadPattern == "street-grid" && Mathf.Abs(x + 14f) < 2.6f) return true;
+            return false;
+        }
+
+        void CreateBroadleafTree(float x, float z, float height, bool heavy)
+        {
+            var ground = HeightAt(x, z); var trunkHeight = height * .61f;
+            CreateTreeTrunk(x, z, ground, trunkHeight, .18f + height * .018f, Material("oak trunks", new Color(.22f, .13f, .07f)));
+            var leaf = Material(heavy ? "heavy broadleaf" : "light broadleaf", heavy ? new Color(.12f, .27f, .13f) : new Color(.25f, .43f, .22f));
+            CreateCanopyCollider(x, ground + height * .77f, z, new Vector3(1.05f, height * .25f, .95f), leaf, heavy);
+            CreateFoliageDetail("broadleaf crown detail", new Vector3(x - .62f, ground + height * .72f, z + .15f), new Vector3(.72f, height * .20f, .68f), leaf);
+            CreateFoliageDetail("broadleaf crown detail", new Vector3(x + .57f, ground + height * .76f, z - .22f), new Vector3(.68f, height * .21f, .72f), leaf);
+            CreateFoliageDetail("broadleaf crown detail", new Vector3(x, ground + height * .91f, z), new Vector3(.66f, height * .17f, .63f), leaf);
+        }
+
+        void CreateConiferTree(float x, float z, float height, bool heavy)
+        {
+            var ground = HeightAt(x, z); var trunkHeight = height * .80f;
+            CreateTreeTrunk(x, z, ground, trunkHeight, .13f + height * .012f, Material("conifer trunks", new Color(.20f, .12f, .065f)));
+            var needle = Material(heavy ? "heavy conifer" : "light conifer", heavy ? new Color(.075f, .22f, .12f) : new Color(.12f, .34f, .19f));
+            CreateCanopyCollider(x, ground + height * .59f, z, new Vector3(.88f, height * .31f, .88f), needle, heavy);
+            CreateFoliageDetail("conifer lower boughs", new Vector3(x, ground + height * .42f, z), new Vector3(1.18f, height * .12f, 1.18f), needle);
+            CreateFoliageDetail("conifer middle boughs", new Vector3(x, ground + height * .64f, z), new Vector3(.86f, height * .11f, .86f), needle);
+            CreateFoliageDetail("conifer upper boughs", new Vector3(x, ground + height * .82f, z), new Vector3(.50f, height * .10f, .50f), needle);
+        }
+
+        void CreateBirchTree(float x, float z, float height, bool heavy)
+        {
+            var ground = HeightAt(x, z); var trunkHeight = height * .76f;
+            CreateTreeTrunk(x, z, ground, trunkHeight, .11f + height * .009f, Material("birch trunks", new Color(.70f, .69f, .59f)));
+            var leaf = Material(heavy ? "heavy birch leaves" : "birch leaves", heavy ? new Color(.18f, .32f, .13f) : new Color(.38f, .52f, .22f));
+            CreateCanopyCollider(x, ground + height * .80f, z, new Vector3(.66f, height * .22f, .61f), leaf, heavy);
+            CreateFoliageDetail("birch crown detail", new Vector3(x - .28f, ground + height * .72f, z), new Vector3(.48f, height * .18f, .46f), leaf);
+            CreateFoliageDetail("birch crown detail", new Vector3(x + .25f, ground + height * .89f, z + .08f), new Vector3(.43f, height * .16f, .42f), leaf);
+        }
+
+        void CreateColumnarTree(float x, float z, float height, bool heavy)
+        {
+            var ground = HeightAt(x, z); var trunkHeight = height * .70f;
+            CreateTreeTrunk(x, z, ground, trunkHeight, .12f, Material("young trunks", new Color(.27f, .17f, .08f)));
+            var leaf = Material(heavy ? "heavy columnar leaves" : "columnar leaves", heavy ? new Color(.13f, .29f, .12f) : new Color(.30f, .46f, .20f));
+            CreateCanopyCollider(x, ground + height * .74f, z, new Vector3(.52f, height * .31f, .52f), leaf, heavy);
+            CreateFoliageDetail("columnar crown detail", new Vector3(x, ground + height * .92f, z), new Vector3(.36f, height * .16f, .36f), leaf);
+        }
+
+        void CreateDeadSnag(float x, float z, float height)
+        {
+            var ground = HeightAt(x, z); var wood = Material("dead wood", new Color(.34f, .29f, .20f));
+            CreateTreeTrunk(x, z, ground, height * .72f, .13f, wood);
+            var branch = CreateBox("dead branch detail", new Vector3(x + .23f, ground + height * .53f, z), new Vector3(.55f, .09f, .09f), wood); branch.transform.rotation = Quaternion.Euler(0f, Range(0f, 180f), Range(-34f, 34f));
+            var second = CreateBox("dead branch detail", new Vector3(x - .18f, ground + height * .66f, z), new Vector3(.42f, .075f, .075f), wood); second.transform.rotation = Quaternion.Euler(0f, Range(0f, 180f), Range(-28f, 28f));
+        }
+
+        void CreateTreeTrunk(float x, float z, float ground, float trunkHeight, float radius, Material material)
+        {
+            CreatePrimitive(PrimitiveType.Cylinder, "tree trunk", new Vector3(x, ground + trunkHeight * .5f, z), new Vector3(radius, trunkHeight * .5f, radius), material);
+        }
+
+        void CreateCanopyCollider(float x, float y, float z, Vector3 scale, Material material, bool heavy)
+        {
+            CreatePrimitive(PrimitiveType.Sphere, heavy ? "heavy foliage canopy" : "tree crown", new Vector3(x, y, z), scale, material);
+        }
+
+        void CreateFoliageDetail(string name, Vector3 position, Vector3 scale, Material material)
+        {
+            CreatePrimitive(PrimitiveType.Sphere, name, position, scale, material);
+        }
+
+        void CreateUndergrowth(float x, float z, bool heavy)
+        {
+            var ground = HeightAt(x, z); var leaf = Material(heavy ? "heavy undergrowth" : "light undergrowth", heavy ? new Color(.10f, .24f, .10f) : new Color(.27f, .41f, .18f));
+            CreatePrimitive(PrimitiveType.Sphere, heavy ? "heavy foliage undergrowth" : "tree crown undergrowth", new Vector3(x, ground + .34f, z), new Vector3(.72f, .34f, .62f), leaf);
+            CreateFoliageDetail("undergrowth detail", new Vector3(x + .46f, ground + .26f, z - .15f), new Vector3(.46f, .25f, .43f), leaf);
         }
 
         void BuildSignatureFeature()
@@ -327,6 +420,7 @@ namespace DownRange.Tactical
         string LosClassification(string name)
         {
             var value = (name ?? "").ToLowerInvariant();
+            if (value.Contains("heavy foliage")) return "blocked";
             if (value.Contains("tree crown")) return "partial";
             if (value.Contains("building") || value.Contains("roof") || value.Contains("tree trunk") || value.Contains("relay mast") || value.Contains("dam wall")) return "blocked";
             return null;
@@ -335,6 +429,7 @@ namespace DownRange.Tactical
         string LosLabel(string name)
         {
             var value = (name ?? "").ToLowerInvariant();
+            if (value.Contains("heavy foliage")) return "dense foliage";
             if (value.Contains("tree crown")) return "foliage";
             if (value.Contains("tree trunk")) return "tree trunk";
             if (value.Contains("relay mast")) return "relay mast";
