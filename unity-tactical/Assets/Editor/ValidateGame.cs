@@ -56,6 +56,7 @@ namespace DownRange.Editor
             Require(Resources.Load<Texture2D>("Models/OneStar/LPM Field Camo Texture") != null, "The generated LPM faction paint is missing.");
             Require(Resources.Load<Texture2D>("Models/OneStar/USMC Field Camo Texture") != null, "The generated USMC faction paint is missing.");
             Require(Resources.Load<Shader>("Shaders/OneStarTriplanarPaint") != null, "The One Star triplanar paint shader is missing.");
+            Require(Resources.Load<Shader>("Shaders/DownRangeTerrainGrid") != null, "The one-inch terrain grid shader is missing.");
             Debug.Log("Down Range tactical validation passed.");
         }
 

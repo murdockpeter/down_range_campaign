@@ -51,6 +51,16 @@ function launchUnityBattle(state) {
   if (state?.tactical?.committed || state?.mission?.status === 'complete') throw new Error('This mission already has committed tactical results.');
   const pendingPath = state?.unityBattle?.requestPath;
   if (state?.unityBattle?.pendingRequestId && pendingPath && fs.existsSync(pendingPath)) {
+    const existingRequest = JSON.parse(fs.readFileSync(pendingPath, 'utf8'));
+    if (!existingRequest?.board?.terrain) {
+      const upgraded = createBattleRequest(state, {
+        requestId: state.unityBattle.pendingRequestId,
+        createdAt: existingRequest.createdAt,
+        seed: Number(existingRequest?.settings?.seed || 1),
+        mapPath: ''
+      });
+      fs.writeFileSync(pendingPath, JSON.stringify(upgraded, null, 2), 'utf8');
+    }
     const resumed = spawn(player, ['--battle-request', pendingPath], { cwd: path.dirname(player), detached: true, stdio: 'ignore', windowsHide: false });
     resumed.unref();
     return { launched: true, resumed: true, requestId: state.unityBattle.pendingRequestId, unityBattle: state.unityBattle };
@@ -58,10 +68,7 @@ function launchUnityBattle(state) {
   const requestId = require('crypto').randomUUID();
   const exchange = path.join(unityExchangeRoot(), requestId);
   fs.mkdirSync(exchange, { recursive: true });
-  const sourceMap = path.join(__dirname, '..', 'assets', 'maps', 'silent-lantern-tts-map-v1.png');
-  const exchangeMap = path.join(exchange, 'silent-lantern-map.png');
-  fs.writeFileSync(exchangeMap, fs.readFileSync(sourceMap));
-  const request = createBattleRequest(state, { requestId, mapPath: exchangeMap });
+  const request = createBattleRequest(state, { requestId, mapPath: '' });
   const requestPath = path.join(exchange, 'battle-request.json');
   fs.writeFileSync(requestPath, JSON.stringify(request, null, 2), 'utf8');
   state.unityBattle ||= {};

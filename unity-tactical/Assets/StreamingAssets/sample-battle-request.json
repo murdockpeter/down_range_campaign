@@ -5,11 +5,14 @@
   "rulesVersion": "1.4.2",
   "campaign": { "name": "Operation Iron Lantern", "slug": "operation-iron-lantern", "turn": 1, "date": "2031-09-14" },
   "mission": {
-    "number": 1, "title": "Silent Lantern", "type": "Reconnaissance", "durationTurns": 8,
+    "number": 1, "title": "Silent Lantern", "type": "Reconnaissance", "locationId": "hill402", "locationName": "Nūmerne Heights", "terrain": "Wooded lake country / low ridges", "durationTurns": 8,
     "situation": "Reconnoiter the relay without becoming decisively engaged.",
     "intent": { "purpose": "Confirm the relay disposition.", "method": "Infiltrate, observe, and exfiltrate.", "endState": "The force returns with usable intelligence." }
   },
-  "board": { "mapPath": "", "widthInches": 64, "heightInches": 42.6667, "pixelsPerInch": 24 },
+  "board": {
+    "mapPath": "", "widthInches": 64, "heightInches": 42.6667, "pixelsPerInch": 24,
+    "terrain": { "locationId": "hill402", "locationName": "Nūmerne Heights", "description": "Wooded lake country / low ridges", "archetype": "wooded-ridge", "seed": 142031, "gridCellSize": 1, "smoothingPasses": 3, "cells": [], "elevation": 0.9, "treeDensity": 0.72, "buildingDensity": 0.05, "water": 0.28, "wetGround": 0.42, "roadPattern": "trail", "features": ["low ridges", "dense treelines", "lake margin", "relay overlook"] }
+  },
   "settings": { "mode": "hotseat", "seed": 142031, "autosave": true },
   "objectives": [
     { "id": "o1", "text": "Observe relay for two turns", "points": 2, "complete": false },

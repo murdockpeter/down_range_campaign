@@ -2,11 +2,35 @@ const crypto = require('crypto');
 
 const CONTRACT_VERSION = 1;
 
+const TERRAIN_PROFILES = {
+  hill402: { archetype:'wooded-ridge', elevation:0.9, treeDensity:0.72, buildingDensity:0.05, water:0.28, wetGround:0.42, roadPattern:'trail', features:['low ridges','dense treelines','lake margin','relay overlook'] },
+  radio: { archetype:'relay-compound', elevation:0.42, treeDensity:0.38, buildingDensity:0.32, water:0.02, wetGround:0.2, roadPattern:'service-road', features:['fenced relay compound','antenna hardstand','border road','cleared fields of fire'] },
+  farm: { archetype:'farmland', elevation:0.22, treeDensity:0.24, buildingDensity:0.13, water:0.12, wetGround:0.58, roadPattern:'farm-lanes', features:['open fields','drainage ditches','farm cluster','woodlot boundaries'] },
+  village: { archetype:'small-town', elevation:0.16, treeDensity:0.16, buildingDensity:0.68, water:0.01, wetGround:0.15, roadPattern:'street-grid', features:['dense village blocks','rail approach','main road','courtyards'] },
+  mine: { archetype:'railhead', elevation:0.18, treeDensity:0.12, buildingDensity:0.42, water:0.03, wetGround:0.24, roadPattern:'rail-yard', features:['parallel rail lines','freight sheds','loading yard','scattered industrial buildings'] },
+  highway: { archetype:'highway-junction', elevation:0.12, treeDensity:0.12, buildingDensity:0.22, water:0.01, wetGround:0.12, roadPattern:'junction', features:['divided highway','checkpoint','village edge','open fields'] },
+  crossing: { archetype:'dam-crossing', elevation:0.3, treeDensity:0.22, buildingDensity:0.18, water:0.62, wetGround:0.72, roadPattern:'causeway', features:['reservoir edge','dam wall','wet approaches','village outbuildings'] },
+  fob: { archetype:'forward-base', elevation:0.14, treeDensity:0.1, buildingDensity:0.48, water:0, wetGround:0.18, roadPattern:'base-loop', features:['perimeter berm','operations buildings','motor pool','rural access road'] }
+};
+
+function terrainProfileFor(state, seed) {
+  const location = (state.locations || []).find(item => item.id === state.mission?.locationId) || state.locations?.[0] || {};
+  const source = TERRAIN_PROFILES[location.id] || TERRAIN_PROFILES.farm;
+  return {
+    locationId: location.id || 'unknown', locationName: location.name || 'Unspecified target area',
+    description: location.terrain || 'Mixed rural terrain', archetype: source.archetype,
+    seed, gridCellSize: 1, smoothingPasses: 3, cells: [], elevation: source.elevation, treeDensity: source.treeDensity, buildingDensity: source.buildingDensity,
+    water: source.water, wetGround: source.wetGround, roadPattern: source.roadPattern,
+    features: source.features.slice()
+  };
+}
+
 function createBattleRequest(state, options = {}) {
   if (!state?.campaign || !state?.mission || !state?.tactical?.units) throw new Error('Campaign tactical state is unavailable.');
   const requestId = options.requestId || crypto.randomUUID();
   const createdAt = options.createdAt || new Date().toISOString();
   const seed = Number.isInteger(options.seed) ? options.seed : crypto.randomInt(1, 2147483646);
+  const terrain = terrainProfileFor(state, seed);
   return {
     contractVersion: CONTRACT_VERSION,
     requestId,
@@ -22,6 +46,9 @@ function createBattleRequest(state, options = {}) {
       number: state.mission.number,
       title: state.mission.title,
       type: state.mission.type,
+      locationId: terrain.locationId,
+      locationName: terrain.locationName,
+      terrain: terrain.description,
       durationTurns: Number.parseInt(state.mission.duration, 10) || 8,
       situation: state.mission.situation,
       intent: state.mission.intent
@@ -30,7 +57,8 @@ function createBattleRequest(state, options = {}) {
       mapPath: options.mapPath || '',
       widthInches: 64,
       heightInches: 42.6667,
-      pixelsPerInch: 24
+      pixelsPerInch: 24,
+      terrain
     },
     settings: { mode: 'hotseat', seed, autosave: true },
     objectives: state.mission.objectives.map(objective => ({
@@ -108,6 +136,10 @@ function applyBattleResult(state, result) {
   next.mission.tacticalSummary = {
     source: 'Unity', rounds: Number(result.rounds || 0), alarm: Boolean(result.alarm),
     observationTurns: Number(result.observationTurns || 0),
+    scoreEarned: Number(result.scoreEarned ?? result.objectives.filter(item => item.complete).reduce((sum, item) => sum + Number(next.mission.objectives.find(objective => objective.id === item.id)?.points || 0), 0)),
+    scoreAvailable: Number(result.scoreAvailable ?? next.mission.objectives.reduce((sum, item) => sum + Number(item.points || 0), 0)),
+    outcome: result.outcome || 'Mission complete',
+    terrainLocationId: result.terrainLocationId || next.mission.locationId || '',
     kia: (result.casualties || []).filter(item => item.category === 'KIA').length,
     serious: (result.casualties || []).filter(item => item.category !== 'KIA').length,
     effective, starting: blue.length,
@@ -116,4 +148,4 @@ function applyBattleResult(state, result) {
   return { state: next, alreadyImported: false };
 }
 
-module.exports = { CONTRACT_VERSION, createBattleRequest, validateBattleResult, applyBattleResult };
+module.exports = { CONTRACT_VERSION, TERRAIN_PROFILES, terrainProfileFor, createBattleRequest, validateBattleResult, applyBattleResult };

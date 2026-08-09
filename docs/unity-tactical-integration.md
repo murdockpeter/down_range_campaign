@@ -6,11 +6,12 @@ Campaign Command and the Unity tactical resolver communicate exclusively through
 
 1. The renderer sends the current campaign state to Electron's privileged main process.
 2. The main process creates a UUID-named directory below the application's per-user `unity-battles` data directory.
-3. It copies the tactical map into that directory and writes `battle-request.json` using contract version 1.
+3. It derives the mission target's terrain profile and writes `battle-request.json` using contract version 1.
 4. It saves the request ID as the campaign's pending Unity battle and launches `DownRangeTactical.exe --battle-request <path>`.
 5. Unity restores a matching `battle-state.json` if present, otherwise it initializes deterministic dice from the request seed.
 6. Unity rewrites `battle-state.json` after every material action.
-7. Ending the mission writes `battle-result.json` in the same directory.
+7. Ending the mission writes objective score, outcome, casualties, unit state, and `battle-result.json` in the same directory.
+8. Campaign Command polls the exchange while a mission is pending and automatically imports the result into the campaign and AAR.
 8. Campaign Command validates the contract and pending request ID, applies the result, saves the campaign, and prepares the AAR.
 
 Imported result IDs are retained in campaign state. Re-importing a result is idempotent and cannot decrement force strength or create casualties twice.
@@ -36,6 +37,12 @@ The result owns:
 - the ordered tactical event log.
 
 Campaign effects remain the campaign tracker's responsibility. Unity reports tactical facts; the tracker updates persistent force strength, casualty ledgers, objective scores, momentum, and history.
+
+## Terrain grid
+
+Every campaign target node maps to a deterministic terrain archetype. The tactical board uses a one-inch logical grid (`gridCellSize: 1`) and renders that data as a shared Unity mesh rather than separate blocks. Neighbor height samples are smoothed before mesh creation, and vertex colors interpolate across contiguous terrain boundaries. Optional `cells` entries can override an individual cell's `type` and `elevation`, providing the contract needed for a later visual map-mask editor without changing the runtime renderer.
+
+Current archetypes cover wooded ridge, relay compound, farmland, small town, railhead, highway junction, dam crossing, and forward base terrain.
 
 ## Extension path
 

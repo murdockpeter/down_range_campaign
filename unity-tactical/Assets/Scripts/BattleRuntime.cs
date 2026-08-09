@@ -18,6 +18,7 @@ namespace DownRange.Tactical
         Texture2D medicSprite;
         Texture2D uasSprite;
         TacticalAudio audio;
+        ProceduralBattleTerrain terrain;
         bool showHelp;
         bool losTool;
         bool losStartSet;
@@ -57,6 +58,7 @@ namespace DownRange.Tactical
         {
             if (Input.GetKeyDown(KeyCode.F1)) { showHelp = !showHelp; audio.Play(SoundCue.Click); }
             if (showHelp && Input.GetKeyDown(KeyCode.Escape)) { showHelp = false; audio.Play(SoundCue.Click); }
+            if (state != null && !showHelp) terrain?.UpdateInput();
             if (state == null || state.completed || showHelp) return;
             if (Input.GetKeyDown(KeyCode.L)) ToggleLosTool();
             if (Input.GetKeyDown(KeyCode.Space)) EndTurn();
@@ -118,6 +120,7 @@ namespace DownRange.Tactical
             }
             dice = new DeterministicDice(request.settings.seed, state.rollCount);
             LoadMap();
+            terrain = new ProceduralBattleTerrain(request.board);
         }
 
         void LoadMap()
@@ -164,7 +167,7 @@ namespace DownRange.Tactical
             GUI.Label(new Rect(16, 9, width * .45f, 23), request == null ? "DOWN RANGE TACTICAL" : request.mission.title.ToUpperInvariant(), titleStyle);
             if (state != null)
             {
-                GUI.Label(new Rect(17, 34, 510, 20), string.Format("ROUND {0}  ·  {1} TURN  ·  INIT B{2}/R{3}  ·  RULES {4}", state.round, state.activeSide.ToUpperInvariant(), state.blueInitiative, state.redInitiative, request.rulesVersion), smallStyle);
+                GUI.Label(new Rect(17, 34, 650, 20), string.Format("ROUND {0}  ·  {1} TURN  ·  {2}  ·  INIT B{3}/R{4}  ·  RULES {5}", state.round, state.activeSide.ToUpperInvariant(), request.mission.locationName, state.blueInitiative, state.redInitiative, request.rulesVersion), smallStyle);
                 if (GUI.Button(new Rect(width - 492, 16, 68, 34), new GUIContent(audio.Enabled ? "SOUND" : "MUTED", "Toggle all tactical sound cues. This preference is saved."))) { audio.Enabled = !audio.Enabled; audio.Play(SoundCue.Click); }
                 if (GUI.Button(new Rect(width - 416, 16, 82, 34), new GUIContent("TURN HELP", "Open the turn sequence and action reference. Shortcut: F1."))) { showHelp = true; audio.Play(SoundCue.Click); }
                 if (GUI.Button(new Rect(width - 326, 16, 112, 34), new GUIContent("END TURN", "Finish this side's turn. Units that did not act will automatically hold a reaction. Shortcut: Space."))) EndTurn();
@@ -200,12 +203,14 @@ namespace DownRange.Tactical
 
         void DrawBoard(Rect stage)
         {
-            GUI.Box(stage, GUIContent.none, panelStyle);
+            if (terrain == null || !terrain.Ready) GUI.Box(stage, GUIContent.none, panelStyle);
             var available = new Rect(stage.x + 9, stage.y + 9, stage.width - 18, stage.height - 30);
             var board = FitAspect(available, request.board.widthInches / request.board.heightInches);
-            if (mapTexture != null) GUI.DrawTexture(board, mapTexture, ScaleMode.StretchToFill, false);
+            terrain?.SetViewport(board);
+            if (terrain != null && terrain.Ready) { }
+            else if (mapTexture != null) GUI.DrawTexture(board, mapTexture, ScaleMode.StretchToFill, false);
             else { GUI.color = new Color(.16f, .2f, .15f); GUI.DrawTexture(board, pixel); GUI.color = Color.white; GUI.Label(new Rect(board.x + 20, board.y + 20, 300, 40), "MAP ASSET UNAVAILABLE\nGameplay remains functional.", smallStyle); }
-            GUI.color = new Color(1f, .78f, .3f, .75f); GUI.Box(new Rect(board.x + board.width * .62f, board.y + board.height * .07f, board.width * .25f, board.height * .31f), "RELAY ZONE"); GUI.color = Color.white;
+            if (terrain == null || !terrain.Ready) { GUI.color = new Color(1f, .78f, .3f, .75f); GUI.Box(new Rect(board.x + board.width * .62f, board.y + board.height * .07f, board.width * .25f, board.height * .31f), "RELAY ZONE"); GUI.color = Color.white; }
 
             if (losTool) { HandleLosTool(board); DrawLosTool(board); }
 
@@ -223,7 +228,7 @@ namespace DownRange.Tactical
                 var tokenHit = state.units.Any(unit => TokenRect(board, unit).Contains(current.mousePosition));
                 if (!tokenHit && TryMoveSelected(board, current.mousePosition)) current.Use();
             }
-            var boardHint = losTool ? "LOS TOOL · left-click two points · right-click resets · L closes" : "Select an active unit, then click its destination · board scale 64\" × 42.7\"";
+            var boardHint = losTool ? "LOS TOOL · left-click two points · right-click resets · L closes" : "ONE-INCH TERRAIN GRID · middle-drag rotates/skews · wheel zooms · select a unit, then click its destination";
             GUI.Label(new Rect(stage.x + 12, stage.yMax - 20, stage.width - 24, 18), boardHint, smallStyle);
         }
 
@@ -236,7 +241,12 @@ namespace DownRange.Tactical
                 losStartSet = false; losEndSet = false; notice = "LOS measurement reset. Click the first point."; audio.Play(SoundCue.Click); current.Use(); return;
             }
             if (current.button != 0) return;
-            var point = new Vector2(Mathf.Clamp01((current.mousePosition.x - board.x) / board.width), Mathf.Clamp01((current.mousePosition.y - board.y) / board.height));
+            Vector2 point;
+            if (terrain != null && terrain.Ready)
+            {
+                float x, y; if (!terrain.TryPercent(current.mousePosition, out x, out y)) return; point = new Vector2(x / 100f, y / 100f);
+            }
+            else point = new Vector2(Mathf.Clamp01((current.mousePosition.x - board.x) / board.width), Mathf.Clamp01((current.mousePosition.y - board.y) / board.height));
             if (!losStartSet || losEndSet)
             {
                 losStart = point; losStartSet = true; losEndSet = false; notice = "LOS start set. Click the second point.";
@@ -254,7 +264,13 @@ namespace DownRange.Tactical
             var start = LosPoint(board, losStart);
             var hasPreview = board.Contains(Event.current.mousePosition);
             if (!losEndSet && !hasPreview) { DrawLosEndpoint(start); return; }
-            var endPercent = losEndSet ? losEnd : new Vector2(Mathf.Clamp01((Event.current.mousePosition.x - board.x) / board.width), Mathf.Clamp01((Event.current.mousePosition.y - board.y) / board.height));
+            Vector2 endPercent;
+            if (losEndSet) endPercent = losEnd;
+            else if (terrain != null && terrain.Ready)
+            {
+                float x, y; if (!terrain.TryPercent(Event.current.mousePosition, out x, out y)) { DrawLosEndpoint(start); return; } endPercent = new Vector2(x / 100f, y / 100f);
+            }
+            else endPercent = new Vector2(Mathf.Clamp01((Event.current.mousePosition.x - board.x) / board.width), Mathf.Clamp01((Event.current.mousePosition.y - board.y) / board.height));
             var end = LosPoint(board, endPercent);
             var color = state.cover == "blocked" ? new Color(.94f, .26f, .19f) : state.cover == "partial" ? new Color(1f, .68f, .18f) : new Color(.28f, .92f, .56f);
             DrawLine(start, end, color, 3f); DrawLosEndpoint(start); DrawLosEndpoint(end);
@@ -264,7 +280,7 @@ namespace DownRange.Tactical
             GUI.Box(labelRect, label, tooltipStyle);
         }
 
-        Vector2 LosPoint(Rect board, Vector2 percent) { return new Vector2(board.x + board.width * percent.x, board.y + board.height * percent.y); }
+        Vector2 LosPoint(Rect board, Vector2 percent) { return terrain != null && terrain.Ready ? terrain.GuiPoint(percent.x * 100f, percent.y * 100f) : new Vector2(board.x + board.width * percent.x, board.y + board.height * percent.y); }
         float LosDistance(Vector2 a, Vector2 b)
         {
             var dx = (b.x - a.x) * request.board.widthInches; var dy = (b.y - a.y) * request.board.heightInches;
@@ -281,7 +297,7 @@ namespace DownRange.Tactical
             if (height > outer.height) { height = outer.height; width = height * aspect; }
             return new Rect(outer.x + (outer.width - width) / 2f, outer.y + (outer.height - height) / 2f, width, height);
         }
-        Vector2 Point(Rect board, UnitData unit) { return new Vector2(board.x + board.width * unit.x / 100f, board.y + board.height * unit.y / 100f); }
+        Vector2 Point(Rect board, UnitData unit) { return terrain != null && terrain.Ready ? terrain.GuiPoint(unit.x, unit.y) : new Vector2(board.x + board.width * unit.x / 100f, board.y + board.height * unit.y / 100f); }
         Rect TokenRect(Rect board, UnitData unit) { var point = Point(board, unit); var size = unit.id == state.selectedId ? 48f : 40f; return new Rect(point.x - size / 2f, point.y - size / 2f, size, size); }
         void DrawToken(Rect board, UnitData unit)
         {
@@ -328,7 +344,9 @@ namespace DownRange.Tactical
         {
             var unit = Unit(state.selectedId);
             if (unit == null || unit.side != state.activeSide || unit.moved || unit.focused || !Effective(unit)) { notice = "That unit cannot move now."; audio.Play(SoundCue.Error); return false; }
-            var x = Mathf.Clamp((mouse.x - board.x) / board.width * 100f, 0f, 100f); var y = Mathf.Clamp((mouse.y - board.y) / board.height * 100f, 0f, 100f);
+            float x, y;
+            if (terrain != null && terrain.Ready) { if (!terrain.TryPercent(mouse, out x, out y)) { notice = "Choose a point on the tabletop."; return false; } }
+            else { x = Mathf.Clamp((mouse.x - board.x) / board.width * 100f, 0f, 100f); y = Mathf.Clamp((mouse.y - board.y) / board.height * 100f, 0f, 100f); }
             var distance = TacticalRules.Distance(unit.x, unit.y, x, y, request.board); var allowance = TacticalRules.MovementAllowance(unit, state.impairedMovement);
             if (distance > allowance + .05f) { notice = string.Format("Move is {0:0.0}\"; allowance is {1:0.0}\".", distance, allowance); audio.Play(SoundCue.Error); return false; }
             unit.x = x; unit.y = y; unit.moved = true; AddEvent(string.Format("{0} moves {1:0.0}\"{2}.", unit.name, distance, state.impairedMovement ? " through impaired terrain" : ""), "move"); audio.Play(SoundCue.Move); Save(); return true;
@@ -440,15 +458,18 @@ namespace DownRange.Tactical
             SetObjective("o1", state.observationTurns >= 2); SetObjective("o2", state.observationTurns >= 2);
             var blue = state.units.Where(unit => unit.side == "blue").ToArray(); var effective = blue.Count(Effective);
             SetObjective("o3", blue.Length > 0 && (float)effective / blue.Length >= .75f); SetObjective("o4", !state.alarm);
+            var scoreAvailable = state.objectives.Sum(objective => objective.points); var scoreEarned = state.objectives.Where(objective => objective.complete).Sum(objective => objective.points);
+            var outcome = scoreAvailable <= 0 ? "Mission complete" : scoreEarned == scoreAvailable ? "Decisive success" : scoreEarned * 2 >= scoreAvailable ? "Partial success" : "Mission setback";
             var result = new BattleResult
             {
                 requestId = request.requestId, resultId = Guid.NewGuid().ToString("N"), completedAt = DateTime.UtcNow.ToString("O"), missionNumber = request.mission.number,
                 rounds = state.round, alarm = state.alarm, observationTurns = state.observationTurns, events = state.events,
+                scoreEarned = scoreEarned, scoreAvailable = scoreAvailable, outcome = outcome, terrainLocationId = request.mission.locationId,
                 units = state.units.Select(unit => new UnitResult { id = unit.id, x = unit.x, y = unit.y, status = unit.status }).ToArray(),
                 objectives = state.objectives.Select(objective => new ObjectiveResult { id = objective.id, complete = objective.complete }).ToArray(),
                 casualties = blue.Where(unit => unit.status == "downed" || unit.status == "dead").Select(unit => new CasualtyResult { unitId = unit.id, category = unit.status == "dead" ? "KIA" : "WIA-S" }).ToArray()
             };
-            File.WriteAllText(resultPath, JsonUtility.ToJson(result, true)); state.completed = true; AddEvent("Battle result exported to the campaign tracker.", "objective"); audio.Play(SoundCue.Objective); Save(); notice = "Result exported. Return to Campaign Command and choose Import Unity result.";
+            File.WriteAllText(resultPath, JsonUtility.ToJson(result, true)); state.completed = true; AddEvent(string.Format("Battle result exported: {0}, {1}/{2} objective points.", outcome, scoreEarned, scoreAvailable), "objective"); audio.Play(SoundCue.Objective); Save(); notice = "Result exported and ready for automatic campaign import. You may return to Campaign Command.";
         }
         void SetObjective(string id, bool complete) { var objective = state.objectives.FirstOrDefault(item => item.id == id); if (objective != null) objective.complete = complete; }
         void AddEvent(string text, string kind)

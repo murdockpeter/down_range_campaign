@@ -8,6 +8,7 @@ let mapMode = 'schematic';
 let mapsLoadPromise = null;
 let tacticalDrag = null;
 let unityStatusData = null;
+let unityImportInFlight = false;
 
 const $ = (selector) => document.querySelector(selector);
 const esc = (value = '') => String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
@@ -386,7 +387,7 @@ function aarView() {
   const done=state.mission.status==='complete';
   if(done)return `<article class="card"><div class="card-header"><h2>Mission ${state.mission.number} closed</h2><span class="sub good">ADJUDICATED</span></div><div class="card-body"><h2>${esc(state.mission.aar.outcome)}</h2><p>${esc(state.mission.aar.summary)}</p><button class="button" data-view-jump="history">Open campaign history</button></div></article>`;
   const checked=state.mission.objectives.filter(o=>o.complete).reduce((sum,o)=>sum+o.points,0),tactical=state.mission.tacticalSummary;
-  const generated=tactical?`Tactical battle ended after ${tactical.rounds} rounds. Relay observation: ${tactical.observationTurns}/2. Alarm: ${tactical.alarm?'raised':'not raised'}. BLUE effective: ${tactical.effective}/${tactical.starting}.\n\n${tactical.log}`:'';
+  const generated=tactical?`Unity tactical result: ${tactical.outcome||'Mission complete'} (${tactical.scoreEarned??0}/${tactical.scoreAvailable??0} objective points). Battle ended after ${tactical.rounds} rounds. Relay observation: ${tactical.observationTurns}/2. Alarm: ${tactical.alarm?'raised':'not raised'}. BLUE effective: ${tactical.effective}/${tactical.starting}. Terrain node: ${tactical.terrainLocationId||state.mission.locationId}.\n\n${tactical.log}`:'';
   return `<article class="card"><div class="card-header"><h2>Mission ${state.mission.number} · ${esc(state.mission.title)}</h2><span class="sub">CURRENT OBJECTIVE SCORE ${checked}</span></div><div class="card-body"><form id="aarForm" class="form-grid">
     <div class="form-field"><label>Outcome</label><select name="outcome"><option>Operational success</option><option>Partial success</option><option>Inconclusive</option><option>Operational setback</option></select></div>
     <div class="form-field"><label>Objective score (0–3)</label><input name="objectiveScore" type="number" min="0" max="3" value="${Math.min(3,Math.ceil(checked/2))}"></div>
@@ -408,9 +409,27 @@ function libraryView() {
 }
 function libraryCards(items) { return items.map(d=>`<article class="doc"><span class="doc-type">${esc(d.category)}</span><h3>${esc(d.title)}</h3><p>${esc(d.detail)}</p><button class="button open-doc" data-file="${esc(d.file)}">Open PDF</button></article>`).join(''); }
 
+function tacticalBriefingView(){
+  const t=state.tactical, unityPending=state.unityBattle?.pendingRequestId;
+  const location=state.locations.find(item=>item.id===state.mission.locationId)||state.locations[0];
+  const profiles={hill402:['WOODED RIDGE','Low ridges','Dense treelines','Lake margin','Concealed approaches'],radio:['RELAY COMPOUND','Antenna hardstand','Service road','Perimeter clearing','Border approaches'],farm:['FARMLAND','Open fields','Drainage ditches','Farm cluster','Woodlot boundaries'],village:['SMALL TOWN','Village blocks','Road grid','Rail approach','Courtyards'],mine:['RAILHEAD','Parallel tracks','Freight sheds','Loading yard','Industrial lots'],highway:['HIGHWAY JUNCTION','A13 intersection','Checkpoint','Village edge','Open fields'],crossing:['DAM CROSSING','Reservoir edge','Dam wall','Wet approaches','Causeway'],fob:['FORWARD BASE','Perimeter berm','Operations buildings','Motor pool','Access road']};
+  const profile=profiles[location.id]||profiles.farm, summary=state.mission.tacticalSummary;
+  const available=state.mission.objectives.reduce((sum,item)=>sum+Number(item.points||0),0);
+  const score=summary?`${summary.scoreEarned??0}/${summary.scoreAvailable??available}`:'PENDING';
+  return `<div class="briefing-shell">
+    <header class="briefing-command"><div><span class="eyebrow">TACTICAL MISSION BRIEF · DOWN RANGE ${esc(state.mission.type)}</span><h1>${esc(state.mission.title)}</h1><p>${esc(location.name)} · ${esc(state.mission.time)} · ${esc(state.mission.duration)}</p></div><div class="briefing-actions"><span class="unity-readiness ${unityStatusData?.playerInstalled?'ready':'offline'}">UNITY ${unityStatusData?.playerInstalled?'READY':'NOT BUILT'}</span>${unityPending?'<span class="unity-readiness active">MISSION ACTIVE</span>':''}${summary?'<button class="button" data-view-jump="aar">OPEN AAR</button>':`<button class="button primary launch-large" id="launchUnityBattle" ${unityStatusData?.playerInstalled&&!t.committed?'':'disabled'}>${unityPending?'RESUME IN UNITY':'OPEN IN UNITY'}</button>`}<button class="button" id="tacticalRules">RULES PDF</button></div></header>
+    ${summary?`<section class="result-return"><div><span>UNITY RESULT RECEIVED</span><strong>${esc(summary.outcome||'Mission complete')}</strong></div><div><span>OBJECTIVE SCORE</span><strong>${score}</strong></div><div><span>BLUE EFFECTIVE</span><strong>${summary.effective}/${summary.starting}</strong></div><div><span>ALARM</span><strong>${summary.alarm?'RAISED':'CLEAR'}</strong></div><button class="button primary" data-view-jump="aar">CONTINUE TO AAR</button></section>`:''}
+    <div class="briefing-grid">
+      <section class="briefing-column"><article class="brief-card"><span class="eyebrow">01 · SITUATION</span><h2>${esc(state.mission.situation)}</h2><div class="brief-kv"><b>Purpose</b><p>${esc(state.mission.intent.purpose)}</p></div><div class="brief-kv"><b>Method</b><p>${esc(state.mission.intent.method)}</p></div><div class="brief-kv"><b>End state</b><p>${esc(state.mission.intent.endState)}</p></div></article><article class="brief-card"><span class="eyebrow">02 · TASK ORGANIZATION</span><div class="allocation-list">${state.mission.allocation.map((item,index)=>`<div><b>${String(index+1).padStart(2,'0')}</b><span>${esc(item)}</span></div>`).join('')}</div></article></section>
+      <section class="briefing-column"><article class="terrain-brief ${esc(location.id)}"><div class="terrain-raster"><i></i><i></i><i></i><i></i><span>${esc(location.name)}</span></div><div class="terrain-title"><span>GENERATIVE TERRAIN PROFILE</span><h2>${profile[0]}</h2><p>${esc(location.terrain)}</p></div><div class="terrain-features">${profile.slice(1).map(feature=>`<span>${esc(feature)}</span>`).join('')}</div><div class="terrain-grid-note"><b>1-INCH LOGICAL GRID</b><span>Shared mesh vertices · smoothed contiguous edges · deterministic mission seed</span></div></article><article class="brief-card objectives-brief"><span class="eyebrow">03 · MISSION OBJECTIVES</span>${state.mission.objectives.map(objective=>`<div class="brief-objective ${objective.complete?'complete':''}"><span>${objective.complete?'✓':'○'}</span><p>${esc(objective.text)}</p><b>${objective.points} PT${objective.points===1?'':'S'}</b></div>`).join('')}</article></section>
+      <section class="briefing-column"><article class="brief-card"><span class="eyebrow">04 · TERRAIN & CONDITIONS</span>${Object.entries(state.mission.metttc).map(([key,value])=>`<div class="brief-kv"><b>${esc(key)}</b><p>${esc(value)}</p></div>`).join('')}</article><article class="brief-card launch-note"><span class="eyebrow">TACTICAL HANDOFF</span><p>Electron is briefing-only. Opening Unity creates or resumes the authoritative tactical mission at <b>${esc(location.name)}</b>. Ending the mission in Unity automatically returns objective scoring, casualties, force strength, and the combat log to this campaign.</p>${unityPending?'<button class="button" id="importUnityBattle">CHECK FOR RETURNED RESULT</button>':''}<button class="button danger-quiet" id="resetTactical">RESET MISSION EXCHANGE</button></article></section>
+    </div>
+  </div>`;
+}
+
 function render() {
   updateHeader();
-  const views = { overview:overviewView, mission:missionView, tactical:tacticalView, mcpp:mcppView, forces:forcesView, logistics:logisticsView, intel:intelView, aar:aarView, history:historyView, library:libraryView };
+  const views = { overview:overviewView, mission:missionView, tactical:tacticalBriefingView, mcpp:mcppView, forces:forcesView, logistics:logisticsView, intel:intelView, aar:aarView, history:historyView, library:libraryView };
   $('#content').innerHTML = views[currentView]();
   bindView();
 }
@@ -452,8 +471,29 @@ function bindView() {
   const filterLibrary=()=>{const q=($('#librarySearch')?.value||'').toLowerCase(),cat=$('#libraryFilter')?.value||'';$('#libraryGrid').innerHTML=libraryCards(state.library.filter(d=>(!cat||d.category===cat)&&Object.values(d).join(' ').toLowerCase().includes(q)));document.querySelectorAll('.open-doc').forEach(el=>el.onclick=()=>window.campaignAPI.openReference(el.dataset.file));};
   $('#librarySearch')?.addEventListener('input',filterLibrary);$('#libraryFilter')?.addEventListener('change',filterLibrary);
   document.querySelectorAll('[data-view-jump]').forEach(el=>el.onclick=()=>switchView(el.dataset.viewJump));
-  if(currentView==='tactical')bindTacticalView();
+  if(currentView==='tactical')bindTacticalBriefing();
   if(currentView==='overview'&&mapMode==='google'&&mapsReady) renderGoogleMap();
+}
+
+async function syncUnityResult(silent=false){
+  if(unityImportInFlight||!state?.unityBattle?.pendingRequestId)return false;
+  unityImportInFlight=true;
+  try{
+    const result=await window.campaignAPI.importUnityResult(state);
+    if(!result.ready){if(!silent)toast(result.message);return false;}
+    state=result.state;normalizeTacticalData();render();
+    if(!result.alreadyImported)toast('Unity mission result received · objective score and casualties mapped');
+    return true;
+  }catch(error){if(!silent)toast(error.message);return false;}
+  finally{unityImportInFlight=false;}
+}
+
+function bindTacticalBriefing(){
+  const t=state.tactical;
+  $('#tacticalRules')?.addEventListener('click',()=>window.campaignAPI.openReference('DownRangeLatest/Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf'));
+  $('#launchUnityBattle')?.addEventListener('click',async()=>{try{const result=await window.campaignAPI.launchUnityBattle(state);state.unityBattle=result.unityBattle;render();toast(result.resumed?'Unity mission resumed':'Unity mission launched · terrain generated from campaign node');}catch(error){toast(error.message);}});
+  $('#importUnityBattle')?.addEventListener('click',()=>syncUnityResult(false));
+  $('#resetTactical')?.addEventListener('click',async()=>{if(t.committed)return toast('Results are already committed; reset the campaign save to replay.');if(!confirm('Discard the pending Unity mission exchange and regenerate the tactical mission from its campaign briefing? Close any running Unity tactical window first.'))return;try{await window.campaignAPI.resetUnityState(state);delete state.tactical;delete state.unityBattle;normalizeTacticalData();scheduleSave();render();toast('Unity mission exchange reset.');}catch(error){toast(error.message);}});
 }
 
 function bindTacticalView(){
@@ -525,3 +565,6 @@ window.campaignAPI.load().then(async(loaded)=>{
   const key=await window.campaignAPI.getMapsKey();
   if(key){try{await loadGoogleMaps(key);mapMode='google';render();}catch(error){toast(error.message);}}
 }).catch((error)=>{$('#content').innerHTML=`<div class="empty">Unable to load campaign: ${esc(error.message)}</div>`;});
+
+setInterval(()=>syncUnityResult(true),2000);
+window.addEventListener('focus',()=>syncUnityResult(true));
