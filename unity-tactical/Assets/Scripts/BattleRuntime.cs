@@ -26,6 +26,7 @@ namespace DownRange.Tactical
         bool losEndSet;
         Vector2 losStart;
         Vector2 losEnd;
+        BattleLosResult measuredLos;
         string requestPath;
         string statePath;
         string resultPath;
@@ -71,6 +72,7 @@ namespace DownRange.Tactical
             losTool = !losTool;
             losStartSet = false;
             losEndSet = false;
+            measuredLos = null;
             notice = losTool ? "LOS tool active: click the first point, then the second. Right-click to reset." : "LOS tool closed.";
             audio.Play(SoundCue.Click);
         }
@@ -221,8 +223,10 @@ namespace DownRange.Tactical
             var selected = Unit(state.selectedId); var target = Unit(state.targetId);
             if (!losTool && selected != null && target != null)
             {
-                var a = Point(board, selected); var b = Point(board, target); DrawLine(a, b, new Color(1f, .82f, .34f), 1.5f);
-                GUI.Label(new Rect((a.x + b.x) / 2f, (a.y + b.y) / 2f, 70, 20), TacticalRules.Distance(selected, target, request.board).ToString("0.0") + "\"", smallStyle);
+                var selectedAssessment = SelectedLos(selected, target); state.cover = selectedAssessment.classification;
+                var sightColor = state.cover == "blocked" ? new Color(.94f, .26f, .19f) : state.cover == "partial" ? new Color(1f, .68f, .18f) : new Color(.28f, .92f, .56f);
+                var a = Point(board, selected); var b = Point(board, target); DrawLine(a, b, sightColor, 1.8f);
+                GUI.Label(new Rect((a.x + b.x) / 2f, (a.y + b.y) / 2f, 110, 34), TacticalRules.Distance(selected, target, request.board).ToString("0.0") + "\" · " + state.cover.ToUpperInvariant(), smallStyle);
             }
             foreach (var unit in state.units) DrawToken(board, unit);
 
@@ -242,7 +246,7 @@ namespace DownRange.Tactical
             if (current.type != EventType.MouseDown || !board.Contains(current.mousePosition)) return;
             if (current.button == 1)
             {
-                losStartSet = false; losEndSet = false; notice = "LOS measurement reset. Click the first point."; audio.Play(SoundCue.Click); current.Use(); return;
+                losStartSet = false; losEndSet = false; measuredLos = null; notice = "LOS measurement reset. Click the first point."; audio.Play(SoundCue.Click); current.Use(); return;
             }
             if (current.button != 0) return;
             Vector2 point;
@@ -253,11 +257,13 @@ namespace DownRange.Tactical
             else point = new Vector2(Mathf.Clamp01((current.mousePosition.x - board.x) / board.width), Mathf.Clamp01((current.mousePosition.y - board.y) / board.height));
             if (!losStartSet || losEndSet)
             {
-                losStart = point; losStartSet = true; losEndSet = false; notice = "LOS start set. Click the second point.";
+                losStart = point; losStartSet = true; losEndSet = false; measuredLos = null; notice = "LOS start set. Click the second point.";
             }
             else
             {
-                losEnd = point; losEndSet = true; notice = string.Format("LOS {0}: {1:0.0}\".", state.cover.ToUpperInvariant(), LosDistance(losStart, losEnd));
+                losEnd = point; losEndSet = true;
+                measuredLos = MeasureLos(losStart, losEnd); state.cover = measuredLos.classification;
+                notice = LosNotice(measuredLos, LosDistance(losStart, losEnd));
             }
             audio.Play(SoundCue.Click); current.Use();
         }
@@ -276,10 +282,12 @@ namespace DownRange.Tactical
             }
             else endPercent = new Vector2(Mathf.Clamp01((Event.current.mousePosition.x - board.x) / board.width), Mathf.Clamp01((Event.current.mousePosition.y - board.y) / board.height));
             var end = LosPoint(board, endPercent);
-            var color = state.cover == "blocked" ? new Color(.94f, .26f, .19f) : state.cover == "partial" ? new Color(1f, .68f, .18f) : new Color(.28f, .92f, .56f);
+            var assessment = losEndSet && measuredLos != null ? measuredLos : MeasureLos(losStart, endPercent);
+            var color = assessment.classification == "blocked" ? new Color(.94f, .26f, .19f) : assessment.classification == "partial" ? new Color(1f, .68f, .18f) : new Color(.28f, .92f, .56f);
             DrawLine(start, end, color, 3f); DrawLosEndpoint(start); DrawLosEndpoint(end);
-            var label = string.Format("LOS {0}\n{1:0.0}\"", state.cover.ToUpperInvariant(), LosDistance(losStart, endPercent));
-            var midpoint = (start + end) * .5f; var labelRect = new Rect(midpoint.x - 54f, midpoint.y - 42f, 108f, 38f);
+            var blocker = string.IsNullOrWhiteSpace(assessment.blocker) ? "" : "\n" + assessment.blocker;
+            var label = string.Format("LOS {0}\n{1:0.0}\"{2}", assessment.classification.ToUpperInvariant(), LosDistance(losStart, endPercent), blocker);
+            var midpoint = (start + end) * .5f; var labelRect = new Rect(midpoint.x - 64f, midpoint.y - 52f, 128f, string.IsNullOrWhiteSpace(assessment.blocker) ? 38f : 52f);
             labelRect.x = Mathf.Clamp(labelRect.x, board.x + 4f, board.xMax - labelRect.width - 4f); labelRect.y = Mathf.Clamp(labelRect.y, board.y + 4f, board.yMax - labelRect.height - 4f);
             GUI.Box(labelRect, label, tooltipStyle);
         }
@@ -289,6 +297,26 @@ namespace DownRange.Tactical
         {
             var dx = (b.x - a.x) * request.board.widthInches; var dy = (b.y - a.y) * request.board.heightInches;
             return Mathf.Sqrt(dx * dx + dy * dy);
+        }
+        BattleLosResult MeasureLos(Vector2 start, Vector2 end)
+        {
+            if (terrain == null || !terrain.Ready) return new BattleLosResult { classification = state.cover };
+            var result = terrain.EvaluateLineOfSight(start.x * 100f, start.y * 100f, end.x * 100f, end.y * 100f, UnitIdAt(start), UnitIdAt(end));
+            return result;
+        }
+        string UnitIdAt(Vector2 percent)
+        {
+            var nearest = state.units.Select(unit => new { unit.id, distance = TacticalRules.Distance(percent.x * 100f, percent.y * 100f, unit.x, unit.y, request.board) }).OrderBy(item => item.distance).FirstOrDefault();
+            return nearest != null && nearest.distance <= 1f ? nearest.id : "";
+        }
+        BattleLosResult SelectedLos(UnitData origin, UnitData target)
+        {
+            return terrain != null && terrain.Ready && origin != null && target != null ? terrain.EvaluateLineOfSight(origin, target) : new BattleLosResult { classification = state.cover };
+        }
+        string LosNotice(BattleLosResult result, float distance)
+        {
+            var blocker = string.IsNullOrWhiteSpace(result.blocker) ? "" : " — " + result.blocker;
+            return string.Format("LOS {0}: {1:0.0}\"{2}.", result.classification.ToUpperInvariant(), distance, blocker);
         }
         void DrawLosEndpoint(Vector2 point)
         {
@@ -375,8 +403,17 @@ namespace DownRange.Tactical
             GUILayout.Label(string.Format("MOVE {0:0.#}\"     SKILL d{1}     DEF {2}", TacticalRules.MovementAllowance(unit, state.impairedMovement), unit.skill, unit.defense), smallStyle);
             GUILayout.Space(8); GUILayout.Label(target == null ? "TARGET: none" : string.Format("TARGET: {0} · {1:0.0}\"", target.name, TacticalRules.Distance(unit, target, request.board)), smallStyle);
             GUILayout.Label("LINE OF SIGHT / COVER", smallStyle);
-            var covers = new[] { new GUIContent("Open", "Clear line of sight: no defense modifier."), new GUIContent("Partial", "Target is partly concealed: harder to hit."), new GUIContent("Blocked", "No line of sight: attacks cannot be made.") }; var coverIndex = state.cover == "partial" ? 1 : state.cover == "blocked" ? 2 : 0;
-            coverIndex = GUILayout.SelectionGrid(coverIndex, covers, 3); state.cover = coverIndex == 1 ? "partial" : coverIndex == 2 ? "blocked" : "open";
+            if (terrain != null && terrain.Ready && target != null)
+            {
+                var automaticLos = SelectedLos(unit, target); state.cover = automaticLos.classification;
+                var detail = string.IsNullOrWhiteSpace(automaticLos.blocker) ? "Uninterrupted eye-height line." : automaticLos.blocker;
+                GUILayout.Box("AUTO LOS · " + state.cover.ToUpperInvariant() + "\n" + detail, guideStyle);
+            }
+            else
+            {
+                var covers = new[] { new GUIContent("Open", "Clear line of sight: no defense modifier."), new GUIContent("Partial", "Target is partly concealed: harder to hit."), new GUIContent("Blocked", "No line of sight: attacks cannot be made.") }; var coverIndex = state.cover == "partial" ? 1 : state.cover == "blocked" ? 2 : 0;
+                coverIndex = GUILayout.SelectionGrid(coverIndex, covers, 3); state.cover = coverIndex == 1 ? "partial" : coverIndex == 2 ? "blocked" : "open";
+            }
             if (ActionButton(losTool ? "LOS TOOL · ON" : "LOS TOOL · OFF", "Measure sight lines and tabletop distance between any two points. Shortcut: L.", 27)) ToggleLosTool();
             state.impairedMovement = GUILayout.Toggle(state.impairedMovement, new GUIContent("Impaired movement", "Use for mud, climbing, crawling, or other terrain that reduces movement."));
             GUILayout.Space(8);
@@ -427,6 +464,7 @@ namespace DownRange.Tactical
         void Fire(bool suppress)
         {
             var attacker = Unit(state.selectedId); var target = Unit(state.targetId); var weapon = attacker?.weapons?.FirstOrDefault();
+            if (terrain != null && terrain.Ready && attacker != null && target != null) state.cover = SelectedLos(attacker, target).classification;
             var result = TacticalRules.Attack(attacker, target, weapon, request.board, state.round, state.cover, suppress, dice);
             if (!result.valid) { notice = result.reason; audio.Play(SoundCue.Error); return; }
             audio.Play(suppress ? SoundCue.Suppress : SoundCue.Fire);
@@ -527,7 +565,7 @@ namespace DownRange.Tactical
             GUILayout.Space(8); GUILayout.Label("2  MOVE", titleStyle);
             GUILayout.Label("Click an empty map position within the selected unit's allowance. A unit normally moves once per turn. Toggle Impaired movement before moving through mud, climbing, or crawling.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("3  ACT", titleStyle);
-            GUILayout.Label("Select a target, set Open / Partial / Blocked cover, then Fire or Suppress. Use the LOS tool (L) to measure any sight line and range. Utility actions include Focus, Radio observation, casualty treatment, and relay observation. Sprint trades the action for mobility.", guideStyle);
+            GUILayout.Label("Select a target; Unity automatically checks eye-height LOS against terrain, structures, foliage, and intervening miniatures before Fire or Suppress. Use the LOS tool (L) to inspect any sight line and range. Utility actions include Focus, Radio observation, casualty treatment, and relay observation. Sprint trades the action for mobility.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("4  REACT OR END", titleStyle);
             GUILayout.Label("Hold Reaction deliberately, or simply end the turn: every effective unit that has not acted automatically holds a reaction. Reaction fire is available during the opposing side's turn.", guideStyle);
             GUILayout.Space(10); GUILayout.Box("CURRENT SIDE: " + state.activeSide.ToUpperInvariant() + "    ·    ROUND " + state.round + "    ·    L: LOS tool    ·    Space: end turn    ·    F1: help", guideStyle);

@@ -117,6 +117,8 @@ namespace DownRange.Tactical
             mesh.vertices = vertices; mesh.colors = colors; mesh.triangles = triangles; mesh.RecalculateNormals(); mesh.RecalculateBounds();
             var terrainObject = new GameObject("one-inch terrain mesh"); terrainObject.transform.SetParent(root);
             terrainObject.AddComponent<MeshFilter>().sharedMesh = mesh; var renderer = terrainObject.AddComponent<MeshRenderer>(); renderer.sharedMaterial = TerrainMaterial(); renderer.receiveShadows = true;
+            terrainObject.AddComponent<MeshCollider>().sharedMesh = mesh;
+            var terrainLos = terrainObject.AddComponent<BattleLosObstacle>(); terrainLos.label = "terrain rise"; terrainLos.classification = "blocked";
             CreateBox("table edge", new Vector3(0f, -.48f, 0f), new Vector3(board.widthInches + 1.2f, .72f, board.heightInches + 1.2f), Material("table", new Color(.20f, .15f, .11f)));
         }
 
@@ -284,6 +286,24 @@ namespace DownRange.Tactical
             return xPercent >= 0f && xPercent <= 100f && yPercent >= 0f && yPercent <= 100f;
         }
 
+        public BattleLosResult EvaluateLineOfSight(float startXPercent, float startYPercent, float endXPercent, float endYPercent, string originUnitId = "", string targetUnitId = "")
+        {
+            Physics.SyncTransforms();
+            return BattleLineOfSight.Evaluate(EyePoint(startXPercent, startYPercent, false), EyePoint(endXPercent, endYPercent, false), originUnitId, targetUnitId);
+        }
+
+        public BattleLosResult EvaluateLineOfSight(UnitData origin, UnitData target)
+        {
+            if (origin == null || target == null) return new BattleLosResult();
+            Physics.SyncTransforms();
+            return BattleLineOfSight.Evaluate(EyePoint(origin.x, origin.y, origin.flying), EyePoint(target.x, target.y, target.flying), origin.id, target.id);
+        }
+
+        Vector3 EyePoint(float xPercent, float yPercent, bool flying)
+        {
+            return WorldPoint(xPercent, yPercent) + Vector3.up * (flying ? 2.25f : 1.45f);
+        }
+
         public Vector3 WorldPoint(float xPercent, float yPercent)
         {
             var x = (xPercent / 100f - .5f) * board.widthInches; var z = (.5f - yPercent / 100f) * board.heightInches;
@@ -295,7 +315,32 @@ namespace DownRange.Tactical
         {
             var item = GameObject.CreatePrimitive(type); item.name = name; item.transform.SetParent(root); item.transform.position = position; item.transform.localScale = scale;
             var renderer = item.GetComponent<Renderer>(); renderer.sharedMaterial = material; renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; renderer.receiveShadows = true;
-            var collider = item.GetComponent<Collider>(); if (collider != null) UnityEngine.Object.Destroy(collider); return item;
+            var collider = item.GetComponent<Collider>(); var classification = LosClassification(name);
+            if (collider != null && classification == null) UnityEngine.Object.Destroy(collider);
+            else if (collider != null)
+            {
+                var obstacle = item.AddComponent<BattleLosObstacle>(); obstacle.classification = classification; obstacle.label = LosLabel(name);
+            }
+            return item;
+        }
+
+        string LosClassification(string name)
+        {
+            var value = (name ?? "").ToLowerInvariant();
+            if (value.Contains("tree crown")) return "partial";
+            if (value.Contains("building") || value.Contains("roof") || value.Contains("tree trunk") || value.Contains("relay mast") || value.Contains("dam wall")) return "blocked";
+            return null;
+        }
+
+        string LosLabel(string name)
+        {
+            var value = (name ?? "").ToLowerInvariant();
+            if (value.Contains("tree crown")) return "foliage";
+            if (value.Contains("tree trunk")) return "tree trunk";
+            if (value.Contains("relay mast")) return "relay mast";
+            if (value.Contains("dam wall")) return "dam wall";
+            if (value.Contains("roof") || value.Contains("building")) return "building";
+            return name;
         }
 
         Material Material(string key, Color color)

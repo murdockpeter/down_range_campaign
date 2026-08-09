@@ -60,7 +60,31 @@ namespace DownRange.Editor
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Combat lifesaver", medicalSkill = 8 }) == "USMC Corpsman", "Campaign medic model mapping failed.");
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Scout team", weapons = new[] { new WeaponData { name = "M249" } } }) == "USMC M249 Gunner", "Campaign automatic rifleman model mapping failed.");
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "red", role = "Relay guard" }) == "LPM Rifleman", "Campaign opposition model mapping failed.");
+            ValidateLineOfSight();
             Debug.Log("Down Range tactical validation passed.");
+        }
+
+        static void ValidateLineOfSight()
+        {
+            var root = new GameObject("LOS validation fixtures");
+            try
+            {
+                var start = new Vector3(1000f, 2f, 0f); var end = new Vector3(1010f, 2f, 0f);
+                Require(BattleLineOfSight.Evaluate(start, end).classification == "open", "Clear LOS classification failed.");
+                var foliage = GameObject.CreatePrimitive(PrimitiveType.Cube); foliage.transform.SetParent(root.transform); foliage.transform.position = new Vector3(1004f, 2f, 0f);
+                var foliageObstacle = foliage.AddComponent<BattleLosObstacle>(); foliageObstacle.label = "test foliage"; foliageObstacle.classification = "partial"; Physics.SyncTransforms();
+                var partial = BattleLineOfSight.Evaluate(start, end); Require(partial.classification == "partial" && partial.blocker == "test foliage", "Partial LOS classification failed.");
+                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube); wall.transform.SetParent(root.transform); wall.transform.position = new Vector3(1007f, 2f, 0f);
+                var wallObstacle = wall.AddComponent<BattleLosObstacle>(); wallObstacle.label = "test building"; wallObstacle.classification = "blocked"; Physics.SyncTransforms();
+                var blocked = BattleLineOfSight.Evaluate(start, end); Require(blocked.classification == "blocked" && blocked.blocker == "test building", "Blocked LOS classification failed.");
+                var unitRoot = new GameObject("Test friendly - 3D campaign miniature"); unitRoot.transform.SetParent(root.transform); unitRoot.transform.position = new Vector3(1004f, 2f, 4f);
+                var marker = unitRoot.AddComponent<CampaignMiniatureMarker>(); marker.unitId = "friendly";
+                var unitBody = GameObject.CreatePrimitive(PrimitiveType.Cube); unitBody.transform.SetParent(unitRoot.transform); unitBody.transform.localPosition = Vector3.zero; Physics.SyncTransforms();
+                var unitBlocked = BattleLineOfSight.Evaluate(new Vector3(1000f, 2f, 4f), new Vector3(1010f, 2f, 4f));
+                Require(unitBlocked.classification == "blocked" && unitBlocked.blocker.Contains("intervening unit"), "Intervening miniature LOS classification failed.");
+                Require(BattleLineOfSight.Evaluate(new Vector3(1000f, 2f, 5f), new Vector3(1010f, 2f, 5f)).classification == "open", "LOS incorrectly applies an invented one-inch unit corridor.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
         }
 
         static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

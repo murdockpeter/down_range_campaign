@@ -48,6 +48,12 @@ Current archetypes cover wooded ridge, relay compound, farmland, small town, rai
 
 Standard campaign battles and One Star share `ImportedMiniatureFactory`. If a unit supplies `modelId`, Unity loads that model explicitly. Otherwise the factory maps faction, role, weapon, medical skill, radio/EW capability, vehicle type, and flight status to the imported USMC, LPM, PLANMC, vehicle, or UAS library. Campaign miniatures receive selectable faction bases, separate selection and target rings, persistent movement facing, and downed/dead presentation while the C# rules continue to own unit state.
 
+## Line of sight
+
+Generated terrain creates semantic physics colliders independently of its visual mesh. Eye/sensor-height rays classify terrain relief, buildings, roofs, dams, relay structures, and tree trunks as blocked; foliage is partial concealment. Imported miniature bounds participate as intervening units, except for the identified origin and target. The rules do not establish an additional one-inch proximity corridor around friendly figures, so a unit blocks only when its actual collider interrupts the sight line.
+
+The free LOS tool displays distance, classification, and the first blocker. Selecting a target performs the same check automatically, colors the target line, removes manual cover selection on generated maps, and recalculates immediately before Fire or Suppress.
+
 ## Extension path
 
 Future contract-compatible modules can add weapon ammunition, blast points, vehicles and armor dice, embarked units, signals/EW effects, indirect fires, terrain polygons, scenario triggers, and AI orders. These should remain scenario data wherever possible, while core adjudication stays in the deterministic C# rules layer.

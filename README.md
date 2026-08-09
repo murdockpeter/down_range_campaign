@@ -11,7 +11,7 @@ An offline Electron campaign layer for **Down Range v1.4.2**. It keeps operation
 - Mission package with commander's intent, METT-TC, OCOKA, objectives, force allocation, and synchronization matrix
 - Briefing-only Electron tactical tab that hands the authoritative battle to Unity
 - Persistent tactical saves and a mission-end handoff that updates objectives, casualties, force strength, and the AAR
-- Standalone offline Unity tactical resolver with deterministic node-specific terrain, a one-inch logical terrain grid, smoothed shared-mesh edges, a versioned JSON request/result bridge, and resumable per-battle saves
+- Standalone offline Unity tactical resolver with deterministic node-specific terrain, a one-inch logical terrain grid, smoothed shared-mesh edges, automatic eye-height terrain LOS, a versioned JSON request/result bridge, and resumable per-battle saves
 - Dedicated One Star 3D preview with a procedural 72" × 60" Calloni tabletop, scenario timeline, force arrivals, tactical camera, measured movement, and physics-based LOS
 - AAR adjudication that advances the campaign and adjusts momentum from −3 to +3
 - Campaign history plus JSON import/export
@@ -32,6 +32,8 @@ npm start
 Campaign progress autosaves to Electron's per-user application-data folder. The packaged seed remains unchanged and can be restored by deleting that saved state.
 
 Open **Tactical battle** in the left rail for the mission briefing, then choose **Open in Unity** to play. Campaign Command writes a terrain-aware `battle-request.json` in a private per-battle exchange directory and launches the offline player. Unity creates the target node as a deterministic one-inch terrain grid and spawns the imported, painted 3D miniatures appropriate to each unit's role. Select a miniature or roster entry, click terrain within its allowance to move, and select an opposing miniature to target. Movement persists the figure's new facing.
+
+Unity automatically traces line of sight from a figure's eye or sensor height. Terrain rises, buildings, solid structures, trunks, and actual intervening miniature silhouettes block the line; foliage applies partial concealment. The measured line and selected-target line report the classification and first blocker, and firing rechecks the result immediately before adjudication.
 
 Unity autosaves `battle-state.json` after every material action and exports `battle-result.json` when the mission ends. Campaign Command watches for that result and automatically applies objective scoring, final unit positions and facings, force losses, casualties, and the tactical log exactly once.
 
