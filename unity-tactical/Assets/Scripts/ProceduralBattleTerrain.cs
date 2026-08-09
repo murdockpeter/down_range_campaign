@@ -284,7 +284,7 @@ namespace DownRange.Tactical
             return xPercent >= 0f && xPercent <= 100f && yPercent >= 0f && yPercent <= 100f;
         }
 
-        Vector3 WorldPoint(float xPercent, float yPercent)
+        public Vector3 WorldPoint(float xPercent, float yPercent)
         {
             var x = (xPercent / 100f - .5f) * board.widthInches; var z = (.5f - yPercent / 100f) * board.heightInches;
             return new Vector3(x, HeightAt(x, z), z);

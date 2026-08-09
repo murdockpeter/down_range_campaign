@@ -328,7 +328,6 @@ namespace DownRange.Tactical
         bool CreateImportedForceModels(OneStarForce force, Transform parent)
         {
             string[] modelNames;
-            var modelColor = force.side == "blue" ? new Color(.10f, .56f, .78f) : force.side == "red" ? new Color(.76f, .16f, .12f) : new Color(.75f, .68f, .30f);
             switch (force.id)
             {
                 case "us-hq": modelNames = new[] { "USMC Officer", "USMC EW Operator" }; break;
@@ -343,44 +342,7 @@ namespace DownRange.Tactical
                 case "lpm-mech-a": case "lpm-mech-b": case "lpm-reinforcement": modelNames = new[] { "PLANMC ZBL-09" }; break;
                 default: modelNames = force.side == "blue" ? new[] { "USMC Rifleman" } : force.side == "red" ? new[] { "PLANMC Rifleman" } : new string[0]; break;
             }
-            if (modelNames.Length == 0) return false;
-            var offsets = modelNames.Length == 1 ? new[] { Vector3.zero } : modelNames.Length == 2 ? new[] { new Vector3(-.38f, 0f, 0f), new Vector3(.38f, 0f, 0f) } : new[] { new Vector3(-.48f, 0f, .18f), new Vector3(.48f, 0f, .18f), new Vector3(0f, 0f, -.42f) };
-            var created = false;
-            for (var index = 0; index < modelNames.Length; index++)
-            {
-                var resourcePath = "Models/OneStar/" + modelNames[index]; var prefab = Resources.Load<GameObject>(resourcePath); if (prefab == null) continue;
-                var model = Instantiate(prefab, parent); model.name = modelNames[index] + " playtest model"; model.transform.localPosition = offsets[index] + Vector3.up * .34f; model.transform.localRotation = Quaternion.identity;
-                var vehicleModel = modelNames[index].Contains("ZBL-09") || modelNames[index].Contains("EQ2050");
-                var scale = vehicleModel ? .62f : force.kind == "uas" ? .46f : .72f; model.transform.localScale = Vector3.one * scale;
-                var texture = Resources.Load<Texture2D>(resourcePath + " Texture"); var standard = Shader.Find("Standard") ?? Shader.Find("Legacy Shaders/Diffuse");
-                var generatedPaint = force.side == "red" ? Resources.Load<Texture2D>("Models/OneStar/LPM Field Camo Texture") : force.side == "blue" && texture == null ? Resources.Load<Texture2D>("Models/OneStar/USMC Field Camo Texture") : null;
-                var paintShader = generatedPaint == null ? null : Resources.Load<Shader>("Shaders/OneStarTriplanarPaint");
-                var useGeneratedPaint = generatedPaint != null && paintShader != null;
-                var activeTexture = useGeneratedPaint ? generatedPaint : texture;
-                if (useGeneratedPaint) { generatedPaint.wrapMode = TextureWrapMode.Repeat; generatedPaint.filterMode = FilterMode.Bilinear; }
-                var modelRenderers = model.GetComponentsInChildren<Renderer>();
-                var modelBounds = modelRenderers.Length == 0 ? new Bounds(model.transform.position, Vector3.one) : modelRenderers[0].bounds;
-                for (var rendererIndex = 1; rendererIndex < modelRenderers.Length; rendererIndex++) modelBounds.Encapsulate(modelRenderers[rendererIndex].bounds);
-                var localModelSize = model.transform.InverseTransformVector(modelBounds.size);
-                var modelHeight = Mathf.Max(.1f, Mathf.Abs(localModelSize.y));
-                var modelRadius = Mathf.Max(.1f, Mathf.Max(Mathf.Abs(localModelSize.x), Mathf.Abs(localModelSize.z)) / 2f);
-                foreach (var renderer in modelRenderers)
-                {
-                    var material = new Material(useGeneratedPaint ? paintShader : standard) { name = modelNames[index] + " runtime material", color = activeTexture == null ? modelColor : Color.white, mainTexture = activeTexture };
-                    if (useGeneratedPaint && material.HasProperty("_CamoScale")) material.SetFloat("_CamoScale", vehicleModel ? .72f : force.kind == "uas" ? 2.4f : 1.7f);
-                    if (useGeneratedPaint)
-                    {
-                        material.SetFloat("_ModelHeight", modelHeight); material.SetFloat("_ModelRadius", modelRadius); material.SetFloat("_PaintMode", vehicleModel ? 2f : force.kind == "uas" ? 3f : 1f);
-                        material.SetFloat("_BaseCutoff", modelNames[index].Contains("EW Operator") ? .31f : .17f);
-                        material.SetColor("_EquipmentColor", force.side == "red" ? new Color(.42f, .30f, .16f) : new Color(.50f, .38f, .22f));
-                        material.SetColor("_WeaponColor", force.side == "red" ? new Color(.075f, .085f, .075f) : new Color(.08f, .09f, .095f));
-                        material.SetColor("_SkinColor", force.side == "red" ? new Color(.66f, .43f, .31f) : new Color(.76f, .53f, .41f));
-                    }
-                    if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", .12f); renderer.material = material;
-                }
-                AddImportedModelCollider(model); created = true;
-            }
-            return created;
+            return ImportedMiniatureFactory.CreateModels(modelNames, force.side, force.kind, parent);
         }
 
         void AddImportedModelCollider(GameObject model)

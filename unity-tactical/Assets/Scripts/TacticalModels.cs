@@ -22,8 +22,9 @@ namespace DownRange.Tactical
     }
     [Serializable] public class UnitData
     {
-        public string id; public string side; public string name; public string role; public string forceId; public string kind = "troop";
+        public string id; public string side; public string name; public string role; public string forceId; public string kind = "troop"; public string modelId;
         public float x; public float y; public float move = 8f; public int skill = 6; public int medicalSkill; public int defense = 4;
+        public float facing; public bool facingSet;
         public string status = "healthy"; public bool radio; public bool flying; public bool ew; public WeaponData[] weapons;
         public bool actionUsed; public bool moved; public bool reaction; public bool focused; public bool sprint; public bool suppressed;
         public string suppressedBySide; public string observedBy; public int observedRound;
@@ -44,7 +45,7 @@ namespace DownRange.Tactical
         public string selectedId; public string targetId; public string cover = "open";
         public UnitData[] units; public ObjectiveData[] objectives; public BattleEvent[] events;
     }
-    [Serializable] public class UnitResult { public string id; public float x; public float y; public string status; }
+    [Serializable] public class UnitResult { public string id; public float x; public float y; public float facing; public string status; }
     [Serializable] public class ObjectiveResult { public string id; public bool complete; }
     [Serializable] public class CasualtyResult { public string unitId; public string category; }
     [Serializable] public class BattleResult

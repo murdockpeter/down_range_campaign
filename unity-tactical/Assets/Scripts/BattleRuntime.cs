@@ -19,6 +19,7 @@ namespace DownRange.Tactical
         Texture2D uasSprite;
         TacticalAudio audio;
         ProceduralBattleTerrain terrain;
+        CampaignMiniatureSet miniatures;
         bool showHelp;
         bool losTool;
         bool losStartSet;
@@ -30,7 +31,7 @@ namespace DownRange.Tactical
         string resultPath;
         Vector2 rosterScroll;
         Vector2 logScroll;
-        string notice = "Select an active unit, then click the map to move or an opposing token to target.";
+        string notice = "Select an active miniature, then click the terrain to move or an opposing miniature to target.";
         GUIStyle titleStyle, smallStyle, panelStyle, tokenStyle, selectedTokenStyle, logStyle, guideStyle, tooltipStyle, objectiveStyle;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -59,6 +60,7 @@ namespace DownRange.Tactical
             if (Input.GetKeyDown(KeyCode.F1)) { showHelp = !showHelp; audio.Play(SoundCue.Click); }
             if (showHelp && Input.GetKeyDown(KeyCode.Escape)) { showHelp = false; audio.Play(SoundCue.Click); }
             if (state != null && !showHelp) terrain?.UpdateInput();
+            if (state != null && miniatures != null) miniatures.Sync(state.units, state.selectedId, state.targetId);
             if (state == null || state.completed || showHelp) return;
             if (Input.GetKeyDown(KeyCode.L)) ToggleLosTool();
             if (Input.GetKeyDown(KeyCode.Space)) EndTurn();
@@ -121,6 +123,8 @@ namespace DownRange.Tactical
             dice = new DeterministicDice(request.settings.seed, state.rollCount);
             LoadMap();
             terrain = new ProceduralBattleTerrain(request.board);
+            miniatures = new CampaignMiniatureSet(terrain, state.units);
+            miniatures.Sync(state.units, state.selectedId, state.targetId);
         }
 
         void LoadMap()
@@ -228,7 +232,7 @@ namespace DownRange.Tactical
                 var tokenHit = state.units.Any(unit => TokenRect(board, unit).Contains(current.mousePosition));
                 if (!tokenHit && TryMoveSelected(board, current.mousePosition)) current.Use();
             }
-            var boardHint = losTool ? "LOS TOOL · left-click two points · right-click resets · L closes" : "ONE-INCH TERRAIN GRID · middle-drag rotates/skews · wheel zooms · select a unit, then click its destination";
+            var boardHint = losTool ? "LOS TOOL · left-click two points · right-click resets · L closes" : "IMPORTED 3D MINIATURES · middle-drag rotates/skews · wheel zooms · select a miniature, then click its destination";
             GUI.Label(new Rect(stage.x + 12, stage.yMax - 20, stage.width - 24, 18), boardHint, smallStyle);
         }
 
@@ -302,6 +306,14 @@ namespace DownRange.Tactical
         void DrawToken(Rect board, UnitData unit)
         {
             var rect = TokenRect(board, unit); var previous = GUI.color;
+            if (terrain != null && terrain.Ready)
+            {
+                if (GUI.Button(rect, new GUIContent(string.Empty, UnitTooltip(unit)), GUIStyle.none)) SelectToken(unit);
+                var badge3d = unit.status == "downed" ? "DOWN" : unit.status == "dead" ? "KIA" : unit.suppressed ? "SUP" : unit.reaction ? "REACT" : "";
+                if (!string.IsNullOrEmpty(badge3d)) GUI.Label(new Rect(rect.x - 4, rect.y - 12, rect.width + 8, 14), badge3d, new GUIStyle(smallStyle) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, normal = { textColor = Color.white } });
+                GUI.Label(new Rect(rect.x - 50, rect.yMax - 2, 140, 17), unit.name, new GUIStyle(smallStyle) { alignment = TextAnchor.UpperCenter, normal = { textColor = unit.side == "blue" ? new Color(.40f, .82f, 1f) : new Color(1f, .43f, .34f) } });
+                return;
+            }
             GUI.color = unit.status == "dead" ? Color.gray : unit.side == "blue" ? new Color(.18f, .68f, .82f) : new Color(.82f, .24f, .18f);
             if (GUI.Button(rect, new GUIContent(string.Empty, UnitTooltip(unit)), unit.id == state.selectedId ? selectedTokenStyle : tokenStyle)) SelectToken(unit);
             GUI.color = previous;
@@ -349,6 +361,8 @@ namespace DownRange.Tactical
             else { x = Mathf.Clamp((mouse.x - board.x) / board.width * 100f, 0f, 100f); y = Mathf.Clamp((mouse.y - board.y) / board.height * 100f, 0f, 100f); }
             var distance = TacticalRules.Distance(unit.x, unit.y, x, y, request.board); var allowance = TacticalRules.MovementAllowance(unit, state.impairedMovement);
             if (distance > allowance + .05f) { notice = string.Format("Move is {0:0.0}\"; allowance is {1:0.0}\".", distance, allowance); audio.Play(SoundCue.Error); return false; }
+            var oldX = unit.x; var oldY = unit.y;
+            miniatures?.FaceMovement(unit, oldX, oldY, x, y);
             unit.x = x; unit.y = y; unit.moved = true; AddEvent(string.Format("{0} moves {1:0.0}\"{2}.", unit.name, distance, state.impairedMovement ? " through impaired terrain" : ""), "move"); audio.Play(SoundCue.Move); Save(); return true;
         }
 
@@ -407,7 +421,7 @@ namespace DownRange.Tactical
             else if (target == null) action = "<color=#91d6be>2. ACTION: select a target or choose a utility action.</color>";
             else action = "<color=#91d6be>2. ACTION: target " + target.name + " is selected; choose an action.</color>";
             GUILayout.Box(move + "\n" + action + "\n3. END TURN when all units are finished (Space).", guideStyle);
-            GUILayout.Label("Hover any token or button for details · F1 opens the full guide", smallStyle);
+            GUILayout.Label("Hover any miniature, roster entry, or button for details · F1 opens the full guide", smallStyle);
         }
 
         void Fire(bool suppress)
@@ -465,7 +479,7 @@ namespace DownRange.Tactical
                 requestId = request.requestId, resultId = Guid.NewGuid().ToString("N"), completedAt = DateTime.UtcNow.ToString("O"), missionNumber = request.mission.number,
                 rounds = state.round, alarm = state.alarm, observationTurns = state.observationTurns, events = state.events,
                 scoreEarned = scoreEarned, scoreAvailable = scoreAvailable, outcome = outcome, terrainLocationId = request.mission.locationId,
-                units = state.units.Select(unit => new UnitResult { id = unit.id, x = unit.x, y = unit.y, status = unit.status }).ToArray(),
+                units = state.units.Select(unit => new UnitResult { id = unit.id, x = unit.x, y = unit.y, facing = unit.facing, status = unit.status }).ToArray(),
                 objectives = state.objectives.Select(objective => new ObjectiveResult { id = objective.id, complete = objective.complete }).ToArray(),
                 casualties = blue.Where(unit => unit.status == "downed" || unit.status == "dead").Select(unit => new CasualtyResult { unitId = unit.id, category = unit.status == "dead" ? "KIA" : "WIA-S" }).ToArray()
             };
@@ -517,7 +531,7 @@ namespace DownRange.Tactical
             GUILayout.Space(8); GUILayout.Label("4  REACT OR END", titleStyle);
             GUILayout.Label("Hold Reaction deliberately, or simply end the turn: every effective unit that has not acted automatically holds a reaction. Reaction fire is available during the opposing side's turn.", guideStyle);
             GUILayout.Space(10); GUILayout.Box("CURRENT SIDE: " + state.activeSide.ToUpperInvariant() + "    ·    ROUND " + state.round + "    ·    L: LOS tool    ·    Space: end turn    ·    F1: help", guideStyle);
-            GUILayout.Space(8); GUILayout.Label("Tip: hover over every token, roster entry, cover setting, and action button for contextual details. The right-hand panel always explains the selected unit's next legal step.", smallStyle);
+            GUILayout.Space(8); GUILayout.Label("Tip: hover over every miniature, roster entry, cover setting, and action button for contextual details. The right-hand panel always explains the selected unit's next legal step.", smallStyle);
             GUILayout.FlexibleSpace();
             var enabled = audio.Enabled; var next = GUILayout.Toggle(enabled, new GUIContent(" Tactical sound", "Enable or mute the procedural offline sound cues.")); if (next != enabled) { audio.Enabled = next; audio.Play(SoundCue.Click); }
             GUILayout.EndArea();

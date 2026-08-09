@@ -7,7 +7,7 @@ const { TERRAIN_PROFILES, terrainProfileFor, createBattleRequest, applyBattleRes
 const root = path.resolve(__dirname, '..');
 const seed = JSON.parse(fs.readFileSync(path.join(root, 'data', 'campaign-seed.json'), 'utf8'));
 const tactical = [
-  {id:'b1',side:'blue',name:'Scout',role:'Scout',forceId:'sq1',kind:'troop',x:10,y:80,move:8,skill:6,defense:4,status:'healthy',weapons:[{id:'m4',name:'M4',range:36,difficulty:3,damage:{sides:6}}]},
+  {id:'b1',side:'blue',name:'Scout',role:'Scout',forceId:'sq1',kind:'troop',modelId:'USMC Rifleman',x:10,y:80,move:8,skill:6,defense:4,status:'healthy',weapons:[{id:'m4',name:'M4',range:36,difficulty:3,damage:{sides:6}}]},
   {id:'r1',side:'red',name:'Guard',role:'Guard',kind:'troop',x:70,y:20,move:8,skill:6,defense:4,status:'healthy',weapons:[]}
 ];
 
@@ -22,6 +22,9 @@ test('battle request serializes campaign, board, units, weapons, and determinist
   assert.equal(request.board.terrain.gridCellSize,1);
   assert.equal(request.board.terrain.smoothingPasses,3);
   assert.equal(request.board.terrain.archetype,'wooded-ridge');
+  assert.equal(request.units[0].modelId,'USMC Rifleman');
+  assert.equal(request.units[1].facing,180);
+  assert.equal(request.units[1].facingSet,true);
   assert.equal(request.units[0].weapons[0].damageSides,6);
 });
 
@@ -39,9 +42,10 @@ test('every campaign target node has a deterministic generative terrain profile'
 
 test('battle result imports objectives and casualties once', () => {
   const state={...structuredClone(seed),tactical:{units:structuredClone(tactical)},unityBattle:{pendingRequestId:'req-1',importedResultIds:[]}};
-  const result={contractVersion:1,requestId:'req-1',resultId:'result-1',completedAt:'2031-09-14T05:10:00Z',rounds:6,alarm:true,observationTurns:2,scoreEarned:2,scoreAvailable:6,outcome:'Mission setback',terrainLocationId:'hill402',units:[{id:'b1',x:5,y:80,status:'downed'},{id:'r1',x:70,y:20,status:'healthy'}],objectives:[{id:'o1',complete:true}],casualties:[{unitId:'b1',category:'WIA-S'}],events:[{round:2,text:'Contact'}]};
+  const result={contractVersion:1,requestId:'req-1',resultId:'result-1',completedAt:'2031-09-14T05:10:00Z',rounds:6,alarm:true,observationTurns:2,scoreEarned:2,scoreAvailable:6,outcome:'Mission setback',terrainLocationId:'hill402',units:[{id:'b1',x:5,y:80,facing:63,status:'downed'},{id:'r1',x:70,y:20,facing:180,status:'healthy'}],objectives:[{id:'o1',complete:true}],casualties:[{unitId:'b1',category:'WIA-S'}],events:[{round:2,text:'Contact'}]};
   const imported=applyBattleResult(state,result);
   assert.equal(imported.state.mission.objectives[0].complete,true);
+  assert.equal(imported.state.tactical.units[0].facing,63);
   assert.equal(imported.state.forces.find(force=>force.id==='sq1').current,8);
   assert.equal(imported.state.mission.tacticalSummary.source,'Unity');
   assert.equal(imported.state.mission.tacticalSummary.scoreEarned,2);

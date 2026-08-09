@@ -31,9 +31,9 @@ npm start
 
 Campaign progress autosaves to Electron's per-user application-data folder. The packaged seed remains unchanged and can be restored by deleting that saved state.
 
-Open **Tactical battle** in the left rail to play. Select a unit from the roster or map, drag an active unit to move it, then select an opposing token as the target. The right rail exposes the actions available under the Down Range turn sequence. Because cover and concealment depend on the miniature's eye-level line of sight, choose the applicable target/LOS condition before resolving fire. Play is local hotseat: end the active side's turn to pass control.
+Open **Tactical battle** in the left rail for the mission briefing, then choose **Open in Unity** to play. Campaign Command writes a terrain-aware `battle-request.json` in a private per-battle exchange directory and launches the offline player. Unity creates the target node as a deterministic one-inch terrain grid and spawns the imported, painted 3D miniatures appropriate to each unit's role. Select a miniature or roster entry, click terrain within its allowance to move, and select an opposing miniature to target. Movement persists the figure's new facing.
 
-The tactical screen is a mission briefing and provides **Open in Unity**. Campaign Command writes a terrain-aware `battle-request.json` in a private per-battle exchange directory and launches the offline player. Unity creates the target node as a deterministic one-inch terrain grid, autosaves `battle-state.json` after every material action, and exports `battle-result.json` when the mission ends. Campaign Command watches for that result and automatically applies objective scoring, force losses, casualties, and the tactical log exactly once.
+Unity autosaves `battle-state.json` after every material action and exports `battle-result.json` when the mission ends. Campaign Command watches for that result and automatically applies objective scoring, final unit positions and facings, force losses, casualties, and the tactical log exactly once.
 
 Choose **One Star 3D** from the same tactical command bar to launch the separate Calloni scenario module. Its current implementation status and controls are documented in `docs/one-star-3d.md`.
 

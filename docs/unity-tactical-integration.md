@@ -12,7 +12,7 @@ Campaign Command and the Unity tactical resolver communicate exclusively through
 6. Unity rewrites `battle-state.json` after every material action.
 7. Ending the mission writes objective score, outcome, casualties, unit state, and `battle-result.json` in the same directory.
 8. Campaign Command polls the exchange while a mission is pending and automatically imports the result into the campaign and AAR.
-8. Campaign Command validates the contract and pending request ID, applies the result, saves the campaign, and prepares the AAR.
+9. Campaign Command validates the contract and pending request ID, applies the result, saves the campaign, and prepares the AAR.
 
 Imported result IDs are retained in campaign state. Re-importing a result is idempotent and cannot decrement force strength or create casualties twice.
 
@@ -26,12 +26,12 @@ The request owns:
 - rules version and deterministic random seed;
 - copied map path and physical board dimensions;
 - scenario objectives;
-- unit deployment, statistics, equipment, and campaign force IDs.
+- unit deployment, facing, statistics, equipment, campaign force IDs, and optional explicit model IDs.
 
 The result owns:
 
 - final round, alarm, and observation state;
-- final unit positions and health states;
+- final unit positions, facings, and health states;
 - objective completion;
 - categorized BLUE casualties;
 - the ordered tactical event log.
@@ -43,6 +43,10 @@ Campaign effects remain the campaign tracker's responsibility. Unity reports tac
 Every campaign target node maps to a deterministic terrain archetype. The tactical board uses a one-inch logical grid (`gridCellSize: 1`) and renders that data as a shared Unity mesh rather than separate blocks. Neighbor height samples are smoothed before mesh creation, and vertex colors interpolate across contiguous terrain boundaries. Optional `cells` entries can override an individual cell's `type` and `elevation`, providing the contract needed for a later visual map-mask editor without changing the runtime renderer.
 
 Current archetypes cover wooded ridge, relay compound, farmland, small town, railhead, highway junction, dam crossing, and forward base terrain.
+
+## Imported miniatures
+
+Standard campaign battles and One Star share `ImportedMiniatureFactory`. If a unit supplies `modelId`, Unity loads that model explicitly. Otherwise the factory maps faction, role, weapon, medical skill, radio/EW capability, vehicle type, and flight status to the imported USMC, LPM, PLANMC, vehicle, or UAS library. Campaign miniatures receive selectable faction bases, separate selection and target rings, persistent movement facing, and downed/dead presentation while the C# rules continue to own unit state.
 
 ## Extension path
 

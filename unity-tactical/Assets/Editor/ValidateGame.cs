@@ -57,6 +57,9 @@ namespace DownRange.Editor
             Require(Resources.Load<Texture2D>("Models/OneStar/USMC Field Camo Texture") != null, "The generated USMC faction paint is missing.");
             Require(Resources.Load<Shader>("Shaders/OneStarTriplanarPaint") != null, "The One Star triplanar paint shader is missing.");
             Require(Resources.Load<Shader>("Shaders/DownRangeTerrainGrid") != null, "The one-inch terrain grid shader is missing.");
+            Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Combat lifesaver", medicalSkill = 8 }) == "USMC Corpsman", "Campaign medic model mapping failed.");
+            Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Scout team", weapons = new[] { new WeaponData { name = "M249" } } }) == "USMC M249 Gunner", "Campaign automatic rifleman model mapping failed.");
+            Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "red", role = "Relay guard" }) == "LPM Rifleman", "Campaign opposition model mapping failed.");
             Debug.Log("Down Range tactical validation passed.");
         }
 

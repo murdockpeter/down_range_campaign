@@ -71,7 +71,9 @@ function createBattleRequest(state, options = {}) {
       role: unit.role,
       forceId: unit.forceId || '',
       kind: unit.kind || 'troop',
+      modelId: unit.modelId || '',
       x: Number(unit.x), y: Number(unit.y),
+      facing: Number(unit.facing ?? (unit.side === 'red' ? 180 : 0)), facingSet: true,
       move: Number(unit.move), skill: Number(unit.skill),
       medicalSkill: Number(unit.medicalSkill || 0),
       defense: Number(unit.defense || 0),
@@ -108,7 +110,7 @@ function applyBattleResult(state, result) {
   for (const unitResult of result.units) {
     const unit = sourceUnits.get(unitResult.id);
     if (!unit) continue;
-    unit.x = Number(unitResult.x); unit.y = Number(unitResult.y); unit.status = unitResult.status;
+    unit.x = Number(unitResult.x); unit.y = Number(unitResult.y); unit.facing = Number(unitResult.facing || 0); unit.status = unitResult.status;
   }
   for (const objectiveResult of result.objectives) {
     const objective = next.mission.objectives.find(item => item.id === objectiveResult.id);
