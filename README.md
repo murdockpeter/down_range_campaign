@@ -37,6 +37,8 @@ Unity automatically traces line of sight from a figure's eye or sensor height. T
 
 Generated woodland uses deterministic mixtures of broadleaf trees, tiered conifers, birch/aspen, narrow young trees, dead snags, and undergrowth. Light woods are open and provide partial foliage concealment; heavy woods form darker clustered groves whose dense canopy and brush can completely block sight.
 
+Roads and rails are terrain-conforming shared meshes rather than rigid boxes. They are subdivided at one-inch intervals and sample the exact smoothed ground triangles, eliminating long floating sections and terrain-cutting slabs on slopes.
+
 Unity autosaves `battle-state.json` after every material action and exports `battle-result.json` when the mission ends. Campaign Command watches for that result and automatically applies objective scoring, final unit positions and facings, force losses, casualties, and the tactical log exactly once.
 
 Choose **One Star 3D** from the same tactical command bar to launch the separate Calloni scenario module. Its current implementation status and controls are documented in `docs/one-star-3d.md`.

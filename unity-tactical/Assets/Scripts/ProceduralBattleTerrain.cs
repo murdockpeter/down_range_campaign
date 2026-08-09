@@ -14,6 +14,9 @@ namespace DownRange.Tactical
         readonly float noiseX;
         readonly float noiseZ;
         readonly Dictionary<int, TerrainCellData> authoredCells = new Dictionary<int, TerrainCellData>();
+        float[,] surfaceHeights;
+        int surfaceColumns;
+        int surfaceRows;
         Camera camera;
         Vector3 focus;
         float yaw;
@@ -96,6 +99,7 @@ namespace DownRange.Tactical
                     smoothed[x, z] = heights[x, z] * .5f + (heights[x - 1, z] + heights[x + 1, z] + heights[x, z - 1] + heights[x, z + 1]) * .125f;
                 heights = smoothed;
             }
+            surfaceHeights = heights; surfaceColumns = columns; surfaceRows = rows;
             var vertices = new Vector3[(columns + 1) * (rows + 1)]; var colors = new Color[vertices.Length];
             var triangles = new int[columns * rows * 6];
             for (var z = 0; z <= rows; z++) for (var x = 0; x <= columns; x++)
@@ -153,6 +157,18 @@ namespace DownRange.Tactical
             return .06f + profile.elevation * (broad * 1.45f + detail * .28f);
         }
 
+        public float SurfaceHeightAt(float x, float z)
+        {
+            if (surfaceHeights == null) return HeightAt(x, z);
+            var sampleX = Mathf.Clamp((x / board.widthInches + .5f) * surfaceColumns, 0f, surfaceColumns);
+            var sampleZ = Mathf.Clamp((z / board.heightInches + .5f) * surfaceRows, 0f, surfaceRows);
+            var x0 = Mathf.Clamp(Mathf.FloorToInt(sampleX), 0, surfaceColumns); var x1 = Mathf.Min(surfaceColumns, x0 + 1);
+            var z0 = Mathf.Clamp(Mathf.FloorToInt(sampleZ), 0, surfaceRows); var z1 = Mathf.Min(surfaceRows, z0 + 1);
+            var tx = sampleX - x0; var tz = sampleZ - z0;
+            var a = surfaceHeights[x0, z0]; var b = surfaceHeights[x1, z0]; var c = surfaceHeights[x0, z1]; var d = surfaceHeights[x1, z1];
+            return tx + tz <= 1f ? a + tx * (b - a) + tz * (c - a) : d + (1f - tx) * (c - d) + (1f - tz) * (b - d);
+        }
+
         void BuildRoadNetwork()
         {
             var asphalt = Material("asphalt", new Color(.20f, .23f, .22f));
@@ -179,14 +195,37 @@ namespace DownRange.Tactical
 
         void Road(Vector3 center, Vector3 size, Material material)
         {
-            center.y = HeightAt(center.x, center.z) + .10f; CreateBox("road", center, size, material);
+            CreateTerrainStrip("segmented terrain-conforming road", center, size.x, size.z, .045f, material);
         }
 
         void Rail(float z)
         {
             var steel = Material("rail", new Color(.16f, .17f, .16f));
-            CreateBox("rail", new Vector3(0f, HeightAt(0f, z) + .18f, z - .45f), new Vector3(board.widthInches, .12f, .16f), steel);
-            CreateBox("rail", new Vector3(0f, HeightAt(0f, z) + .18f, z + .45f), new Vector3(board.widthInches, .12f, .16f), steel);
+            CreateTerrainStrip("segmented terrain-conforming rail", new Vector3(0f, 0f, z - .45f), board.widthInches, .16f, .10f, steel);
+            CreateTerrainStrip("segmented terrain-conforming rail", new Vector3(0f, 0f, z + .45f), board.widthInches, .16f, .10f, steel);
+        }
+
+        void CreateTerrainStrip(string name, Vector3 center, float width, float depth, float surfaceOffset, Material material)
+        {
+            var columns = Mathf.Max(1, Mathf.CeilToInt(width)); var rows = Mathf.Max(1, Mathf.CeilToInt(depth));
+            var vertices = new Vector3[(columns + 1) * (rows + 1)]; var uv = new Vector2[vertices.Length]; var triangles = new int[columns * rows * 6];
+            for (var z = 0; z <= rows; z++) for (var x = 0; x <= columns; x++)
+            {
+                var index = z * (columns + 1) + x;
+                var worldX = center.x - width * .5f + width * x / columns; var worldZ = center.z - depth * .5f + depth * z / rows;
+                vertices[index] = new Vector3(worldX, SurfaceHeightAt(worldX, worldZ) + surfaceOffset, worldZ);
+                uv[index] = new Vector2(width * x / columns, depth * z / rows);
+            }
+            var triangle = 0;
+            for (var z = 0; z < rows; z++) for (var x = 0; x < columns; x++)
+            {
+                var a = z * (columns + 1) + x; var b = a + 1; var c = a + columns + 1; var d = c + 1;
+                triangles[triangle++] = a; triangles[triangle++] = c; triangles[triangle++] = b;
+                triangles[triangle++] = b; triangles[triangle++] = c; triangles[triangle++] = d;
+            }
+            var mesh = new Mesh { name = name + " one-inch mesh" }; mesh.vertices = vertices; mesh.uv = uv; mesh.triangles = triangles; mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            var strip = new GameObject(name); strip.transform.SetParent(root); strip.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = strip.AddComponent<MeshRenderer>(); renderer.sharedMaterial = material; renderer.receiveShadows = true; renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         void BuildWater()
@@ -209,7 +248,7 @@ namespace DownRange.Tactical
                 var x = Range(-board.widthInches * .39f, board.widthInches * .39f); var z = Range(-board.heightInches * .38f, board.heightInches * .38f);
                 if (Mathf.Abs(z - 3f) < 4f) z += z < 3f ? -5f : 5f;
                 var width = Range(2.4f, profile.archetype == "small-town" ? 5.8f : 4.7f); var depth = Range(2.2f, 4.5f); var height = Range(1.5f, profile.archetype == "small-town" ? 4.8f : 3.2f);
-                var ground = HeightAt(x, z);
+                var ground = SurfaceHeightAt(x, z);
                 CreateBox("building", new Vector3(x, ground + height * .5f, z), new Vector3(width, height, depth), walls);
                 CreateBox("roof", new Vector3(x, ground + height + .12f, z), new Vector3(width + .18f, .24f, depth + .18f), roof);
             }
@@ -254,7 +293,7 @@ namespace DownRange.Tactical
 
         void CreateBroadleafTree(float x, float z, float height, bool heavy)
         {
-            var ground = HeightAt(x, z); var trunkHeight = height * .61f;
+            var ground = SurfaceHeightAt(x, z); var trunkHeight = height * .61f;
             CreateTreeTrunk(x, z, ground, trunkHeight, .18f + height * .018f, Material("oak trunks", new Color(.22f, .13f, .07f)));
             var leaf = Material(heavy ? "heavy broadleaf" : "light broadleaf", heavy ? new Color(.12f, .27f, .13f) : new Color(.25f, .43f, .22f));
             CreateCanopyCollider(x, ground + height * .77f, z, new Vector3(1.05f, height * .25f, .95f), leaf, heavy);
@@ -265,7 +304,7 @@ namespace DownRange.Tactical
 
         void CreateConiferTree(float x, float z, float height, bool heavy)
         {
-            var ground = HeightAt(x, z); var trunkHeight = height * .80f;
+            var ground = SurfaceHeightAt(x, z); var trunkHeight = height * .80f;
             CreateTreeTrunk(x, z, ground, trunkHeight, .13f + height * .012f, Material("conifer trunks", new Color(.20f, .12f, .065f)));
             var needle = Material(heavy ? "heavy conifer" : "light conifer", heavy ? new Color(.075f, .22f, .12f) : new Color(.12f, .34f, .19f));
             CreateCanopyCollider(x, ground + height * .59f, z, new Vector3(.88f, height * .31f, .88f), needle, heavy);
@@ -276,7 +315,7 @@ namespace DownRange.Tactical
 
         void CreateBirchTree(float x, float z, float height, bool heavy)
         {
-            var ground = HeightAt(x, z); var trunkHeight = height * .76f;
+            var ground = SurfaceHeightAt(x, z); var trunkHeight = height * .76f;
             CreateTreeTrunk(x, z, ground, trunkHeight, .11f + height * .009f, Material("birch trunks", new Color(.70f, .69f, .59f)));
             var leaf = Material(heavy ? "heavy birch leaves" : "birch leaves", heavy ? new Color(.18f, .32f, .13f) : new Color(.38f, .52f, .22f));
             CreateCanopyCollider(x, ground + height * .80f, z, new Vector3(.66f, height * .22f, .61f), leaf, heavy);
@@ -286,7 +325,7 @@ namespace DownRange.Tactical
 
         void CreateColumnarTree(float x, float z, float height, bool heavy)
         {
-            var ground = HeightAt(x, z); var trunkHeight = height * .70f;
+            var ground = SurfaceHeightAt(x, z); var trunkHeight = height * .70f;
             CreateTreeTrunk(x, z, ground, trunkHeight, .12f, Material("young trunks", new Color(.27f, .17f, .08f)));
             var leaf = Material(heavy ? "heavy columnar leaves" : "columnar leaves", heavy ? new Color(.13f, .29f, .12f) : new Color(.30f, .46f, .20f));
             CreateCanopyCollider(x, ground + height * .74f, z, new Vector3(.52f, height * .31f, .52f), leaf, heavy);
@@ -295,7 +334,7 @@ namespace DownRange.Tactical
 
         void CreateDeadSnag(float x, float z, float height)
         {
-            var ground = HeightAt(x, z); var wood = Material("dead wood", new Color(.34f, .29f, .20f));
+            var ground = SurfaceHeightAt(x, z); var wood = Material("dead wood", new Color(.34f, .29f, .20f));
             CreateTreeTrunk(x, z, ground, height * .72f, .13f, wood);
             var branch = CreateBox("dead branch detail", new Vector3(x + .23f, ground + height * .53f, z), new Vector3(.55f, .09f, .09f), wood); branch.transform.rotation = Quaternion.Euler(0f, Range(0f, 180f), Range(-34f, 34f));
             var second = CreateBox("dead branch detail", new Vector3(x - .18f, ground + height * .66f, z), new Vector3(.42f, .075f, .075f), wood); second.transform.rotation = Quaternion.Euler(0f, Range(0f, 180f), Range(-28f, 28f));
@@ -318,7 +357,7 @@ namespace DownRange.Tactical
 
         void CreateUndergrowth(float x, float z, bool heavy)
         {
-            var ground = HeightAt(x, z); var leaf = Material(heavy ? "heavy undergrowth" : "light undergrowth", heavy ? new Color(.10f, .24f, .10f) : new Color(.27f, .41f, .18f));
+            var ground = SurfaceHeightAt(x, z); var leaf = Material(heavy ? "heavy undergrowth" : "light undergrowth", heavy ? new Color(.10f, .24f, .10f) : new Color(.27f, .41f, .18f));
             CreatePrimitive(PrimitiveType.Sphere, heavy ? "heavy foliage undergrowth" : "tree crown undergrowth", new Vector3(x, ground + .34f, z), new Vector3(.72f, .34f, .62f), leaf);
             CreateFoliageDetail("undergrowth detail", new Vector3(x + .46f, ground + .26f, z - .15f), new Vector3(.46f, .25f, .43f), leaf);
         }
@@ -328,14 +367,14 @@ namespace DownRange.Tactical
             if (profile.archetype == "relay-compound" || profile.archetype == "wooded-ridge")
             {
                 var steel = Material("antenna", new Color(.18f, .20f, .19f));
-                var x = 17f; var z = -7f; var ground = HeightAt(x, z);
+                var x = 17f; var z = -7f; var ground = SurfaceHeightAt(x, z);
                 CreatePrimitive(PrimitiveType.Cylinder, "relay mast", new Vector3(x, ground + 4.5f, z), new Vector3(.18f, 4.5f, .18f), steel);
                 CreateBox("relay hardstand", new Vector3(x, ground + .08f, z), new Vector3(7f, .16f, 7f), Material("hardstand", new Color(.38f, .39f, .36f)));
             }
             if (profile.archetype == "dam-crossing")
                 CreateBox("dam wall", new Vector3(0f, 1.1f, -4f), new Vector3(board.widthInches, 2.2f, 2.4f), Material("dam concrete", new Color(.42f, .44f, .42f)));
             var marker = Material("objective", new Color(.83f, .58f, .15f));
-            CreatePrimitive(PrimitiveType.Cylinder, "objective marker", new Vector3(17f, HeightAt(17f, -7f) + .18f, -7f), new Vector3(2.2f, .12f, 2.2f), marker);
+            CreatePrimitive(PrimitiveType.Cylinder, "objective marker", new Vector3(17f, SurfaceHeightAt(17f, -7f) + .18f, -7f), new Vector3(2.2f, .12f, 2.2f), marker);
         }
 
         public void UpdateInput()
@@ -400,7 +439,7 @@ namespace DownRange.Tactical
         public Vector3 WorldPoint(float xPercent, float yPercent)
         {
             var x = (xPercent / 100f - .5f) * board.widthInches; var z = (.5f - yPercent / 100f) * board.heightInches;
-            return new Vector3(x, HeightAt(x, z), z);
+            return new Vector3(x, SurfaceHeightAt(x, z), z);
         }
 
         GameObject CreateBox(string name, Vector3 position, Vector3 scale, Material material) { return CreatePrimitive(PrimitiveType.Cube, name, position, scale, material); }

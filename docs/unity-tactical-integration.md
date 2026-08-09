@@ -42,6 +42,8 @@ Campaign effects remain the campaign tracker's responsibility. Unity reports tac
 
 Every campaign target node maps to a deterministic terrain archetype. The tactical board uses a one-inch logical grid (`gridCellSize: 1`) and renders that data as a shared Unity mesh rather than separate blocks. Neighbor height samples are smoothed before mesh creation, and vertex colors interpolate across contiguous terrain boundaries. Optional `cells` entries can override an individual cell's `type` and `elevation`, providing the contract needed for a later visual map-mask editor without changing the runtime renderer.
 
+The final smoothed height array remains the runtime's canonical surface. Roads and rails are one-inch segmented strip meshes whose vertices sample the same terrain triangles; miniature, building, vegetation, and objective placement uses the same interpolation. This keeps road edges and placed objects seated on slopes without changing the underlying logical inch measurements.
+
 Current archetypes cover wooded ridge, relay compound, farmland, small town, railhead, highway junction, dam crossing, and forward base terrain.
 
 Terrain profiles also classify `woodland` as `heavy`, `light`, or `sparse`. The vegetation pass deterministically mixes broadleaf, conifer, birch/aspen, columnar young-tree, snag, and undergrowth forms. Heavy woodland clusters around seeded grove centers and uses dense-foliage blockers; light woodland keeps wider spacing and partial-concealment canopies. Trunks remain solid LOS blockers in every class.
