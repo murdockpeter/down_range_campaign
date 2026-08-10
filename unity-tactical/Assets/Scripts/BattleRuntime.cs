@@ -32,8 +32,16 @@ namespace DownRange.Tactical
         string resultPath;
         Vector2 rosterScroll;
         Vector2 logScroll;
+        Vector2 inspectorScroll;
+        string hoveredActionHelp;
         string notice = "Select an active miniature, then click the terrain to move or an opposing miniature to target.";
-        GUIStyle titleStyle, smallStyle, panelStyle, tokenStyle, selectedTokenStyle, logStyle, guideStyle, tooltipStyle, objectiveStyle;
+        GUIStyle titleStyle, smallStyle, panelStyle, tokenStyle, selectedTokenStyle, logStyle, guideStyle, tooltipStyle, objectiveStyle, actionButtonStyle, unavailableActionStyle;
+
+        sealed class ActionDescriptor
+        {
+            public string title; public string summary; public string cost; public string requirements; public string effect;
+            public bool available; public string unavailable;
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Bootstrap()
@@ -153,8 +161,10 @@ namespace DownRange.Tactical
             selectedTokenStyle = new GUIStyle(tokenStyle) { fontSize = 11 };
             logStyle = new GUIStyle(smallStyle) { fontSize = 9 };
             guideStyle = new GUIStyle(smallStyle) { fontSize = 11, richText = true, normal = { textColor = new Color(.78f, .84f, .79f) } };
-            tooltipStyle = new GUIStyle(GUI.skin.box) { fontSize = 11, wordWrap = true, alignment = TextAnchor.UpperLeft, padding = new RectOffset(9, 9, 7, 7), normal = { background = MakeTexture(new Color(.035f, .052f, .045f, .98f)), textColor = new Color(.92f, .95f, .91f) } };
+            tooltipStyle = new GUIStyle(GUI.skin.box) { fontSize = 11, wordWrap = true, richText = true, alignment = TextAnchor.UpperLeft, padding = new RectOffset(9, 9, 7, 7), normal = { background = MakeTexture(new Color(.035f, .052f, .045f, .98f)), textColor = new Color(.92f, .95f, .91f) } };
             objectiveStyle = new GUIStyle(GUI.skin.box) { fontSize = 9, wordWrap = true, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(6, 6, 4, 4) };
+            actionButtonStyle = new GUIStyle(GUI.skin.button) { fontSize = 10, richText = true, wordWrap = true, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(9, 7, 4, 4) };
+            unavailableActionStyle = new GUIStyle(actionButtonStyle); unavailableActionStyle.normal.textColor = new Color(.46f, .50f, .47f); unavailableActionStyle.hover.textColor = new Color(.72f, .66f, .54f);
         }
 
         Texture2D MakeTexture(Color color) { var texture = new Texture2D(1, 1); texture.SetPixel(0, 0, color); texture.Apply(); return texture; }
@@ -397,8 +407,9 @@ namespace DownRange.Tactical
         void DrawInspector(Rect rect)
         {
             GUI.Box(rect, GUIContent.none, panelStyle); GUILayout.BeginArea(new Rect(rect.x + 10, rect.y + 9, rect.width - 20, rect.height - 18));
+            inspectorScroll = GUILayout.BeginScrollView(inspectorScroll, false, true);
             GUILayout.Label("UNIT CONTROL", smallStyle); var unit = Unit(state.selectedId); var target = Unit(state.targetId);
-            if (unit == null) { GUILayout.Label("Select a unit.", titleStyle); GUILayout.EndArea(); return; }
+            if (unit == null) { GUILayout.Label("Select a unit.", titleStyle); GUILayout.EndScrollView(); GUILayout.EndArea(); return; }
             GUILayout.Label(unit.name, titleStyle); GUILayout.Label(unit.role + " · " + unit.status, smallStyle);
             GUILayout.Label(string.Format("MOVE {0:0.#}\"     SKILL d{1}     DEF {2}", TacticalRules.MovementAllowance(unit, state.impairedMovement), unit.skill, unit.defense), smallStyle);
             GUILayout.Space(8); GUILayout.Label(target == null ? "TARGET: none" : string.Format("TARGET: {0} · {1:0.0}\"", target.name, TacticalRules.Distance(unit, target, request.board)), smallStyle);
@@ -416,19 +427,103 @@ namespace DownRange.Tactical
             }
             if (ActionButton(losTool ? "LOS TOOL · ON" : "LOS TOOL · OFF", "Measure sight lines and tabletop distance between any two points. Shortcut: L.", 27)) ToggleLosTool();
             state.impairedMovement = GUILayout.Toggle(state.impairedMovement, new GUIContent("Impaired movement", "Use for mud, climbing, crawling, or other terrain that reduces movement."));
-            GUILayout.Space(8);
-            var canAct = CanAct(unit); GUI.enabled = canAct && target != null && unit.weapons != null && unit.weapons.Length > 0;
-            if (ActionButton(unit.weapons != null && unit.weapons.Length > 0 ? "FIRE · " + unit.weapons[0].name : "FIRE · UNARMED", "Attack the selected opposing target. Uses this unit's action.", 30)) Fire(false);
-            if (ActionButton("SUPPRESS", "Attack to apply suppression instead of causing a casualty. Uses this unit's action.", 27)) Fire(true);
-            GUI.enabled = canAct && !unit.reaction; if (ActionButton("HOLD REACTION", "Reserve the action. This unit may react during the opposing side's turn.")) { unit.actionUsed = true; unit.reaction = true; AddEvent(unit.name + " holds a reaction.", "action"); audio.Play(SoundCue.Click); Save(); }
-            GUI.enabled = canAct && unit.kind == "troop" && !unit.sprint; if (ActionButton("SPRINT", "Trade the action for extra mobility this turn.")) { unit.actionUsed = true; unit.sprint = true; AddEvent(unit.name + " sacrifices its action to sprint.", "move"); audio.Play(SoundCue.Move); Save(); }
-            GUI.enabled = canAct; if (ActionButton("FOCUS", "Give up movement and use the action to focus.")) { ConsumeAction(unit); unit.focused = true; unit.moved = true; AddEvent(unit.name + " focuses and gives up movement.", "action"); audio.Play(SoundCue.Click); Save(); }
-            GUI.enabled = canAct && unit.radio && target != null; if (ActionButton("RADIO FIRES OBSERVATION", "Mark the selected target for friendly fires. Requires a radio.")) { ConsumeAction(unit); target.observedBy = unit.side; target.observedRound = state.round; AddEvent(unit.name + " observes " + target.name + " for friendly fires.", "signal"); audio.Play(SoundCue.Objective); Save(); }
-            GUI.enabled = canAct && target != null && target.side == unit.side && target.status == "downed"; if (ActionButton("TREAT CASUALTY", "Treat an adjacent downed friendly. Select the casualty as the target first.")) Treat(unit, target);
-            GUI.enabled = canAct && unit.side == "blue"; if (ActionButton("OBSERVE RELAY", "Make progress on the relay objective while within 18 inches.")) ObserveRelay(unit);
-            GUI.enabled = true;
+            GUILayout.Space(8); DrawActionMenu(unit, target);
             GUILayout.Space(8); DrawTurnGuide(unit, target);
-            GUILayout.Space(5); GUILayout.Label(notice, smallStyle); GUILayout.EndArea();
+            GUILayout.Space(5); GUILayout.Label(notice, smallStyle); GUILayout.EndScrollView(); GUILayout.EndArea();
+        }
+
+        void DrawActionMenu(UnitData unit, UnitData target)
+        {
+            hoveredActionHelp = string.Empty;
+            GUILayout.Label("UNIT ACTIONS", smallStyle);
+            var generalReason = ActionStateReason(unit);
+            var canAct = string.IsNullOrEmpty(generalReason);
+            var weapon = unit.weapons?.FirstOrDefault();
+            var opposingTarget = target != null && target.side != unit.side;
+            var targetDistance = target == null ? 0f : TacticalRules.Distance(unit, target, request.board);
+            var moveReason = !Effective(unit) ? "This unit cannot move while " + unit.status + "." :
+                unit.side != state.activeSide ? "Movement is only available during the " + unit.side.ToUpperInvariant() + " turn." :
+                unit.moved || unit.focused ? "This unit has already moved or given up movement." : string.Empty;
+
+            var move = Describe("MOVE", "Reposition on the tabletop.", "Movement", "Active-side unit with unused movement.",
+                "Click open terrain up to " + TacticalRules.MovementAllowance(unit, state.impairedMovement).ToString("0.#") + "\" away. Facing follows movement.", string.IsNullOrEmpty(moveReason), moveReason);
+            if (ActionMenuButton(move)) { notice = "MOVE ready: click an open point on the tabletop within the unit's allowance."; audio.Play(SoundCue.Click); }
+
+            var attackReason = generalReason;
+            if (string.IsNullOrEmpty(attackReason) && weapon == null) attackReason = "This unit has no ranged weapon.";
+            else if (string.IsNullOrEmpty(attackReason) && target == null) attackReason = "Select an opposing miniature as the target.";
+            else if (string.IsNullOrEmpty(attackReason) && !opposingTarget) attackReason = "Fire requires an opposing target.";
+            else if (string.IsNullOrEmpty(attackReason) && state.cover == "blocked") attackReason = "Terrain or a miniature blocks line of sight.";
+            else if (string.IsNullOrEmpty(attackReason) && targetDistance > weapon.range) attackReason = string.Format("Target is {0:0.0}\" away; {1} range is {2:0.#}\".", targetDistance, weapon.name, weapon.range);
+            var weaponName = weapon == null ? "unarmed" : weapon.name;
+            var weaponRange = weapon == null ? "No weapon equipped." : string.Format("Opposing target within {0:0.#}\" and an open or partial LOS.", weapon.range);
+            if (ActionMenuButton(Describe("FIRE · " + weaponName, "Attack to cause a casualty.", "1 action", weaponRange,
+                "Roll the weapon attack against the target's defense and current cover.", string.IsNullOrEmpty(attackReason), attackReason))) Fire(false);
+            if (ActionMenuButton(Describe("SUPPRESS", "Pin an enemy instead of wounding it.", "1 action", weaponRange,
+                "A successful attack applies suppression rather than a casualty.", string.IsNullOrEmpty(attackReason), attackReason))) Fire(true);
+
+            var reactionReason = canAct && !unit.reaction ? string.Empty : unit.reaction ? "This unit is already holding a reaction." : generalReason;
+            if (ActionMenuButton(Describe("HOLD REACTION", "Reserve an attack for the enemy turn.", "1 action", "Effective unit with an unused action.",
+                "The unit may Fire during the opposing side's turn.", string.IsNullOrEmpty(reactionReason), reactionReason)))
+            { unit.actionUsed = true; unit.reaction = true; AddEvent(unit.name + " holds a reaction.", "action"); audio.Play(SoundCue.Click); Save(); }
+
+            var sprintReason = !canAct ? generalReason : unit.kind != "troop" ? "Only troop units may sprint." : unit.sprint ? "This unit is already sprinting." : string.Empty;
+            if (ActionMenuButton(Describe("SPRINT", "Double this troop's movement allowance.", "1 action", "Troop unit with an unused action.",
+                "Doubles movement this turn; the unit gives up its action.", string.IsNullOrEmpty(sprintReason), sprintReason)))
+            { unit.actionUsed = true; unit.sprint = true; AddEvent(unit.name + " sacrifices its action to sprint.", "move"); audio.Play(SoundCue.Move); Save(); }
+
+            if (ActionMenuButton(Describe("FOCUS", "Trade movement for deliberate preparation.", "1 action + movement", "Effective unit with an unused action.",
+                "Consumes the action and all remaining movement for this turn.", canAct, generalReason)))
+            { ConsumeAction(unit); unit.focused = true; unit.moved = true; AddEvent(unit.name + " focuses and gives up movement.", "action"); audio.Play(SoundCue.Click); Save(); }
+
+            var radioReason = !canAct ? generalReason : !unit.radio ? "This unit is not equipped with a radio." :
+                target == null ? "Select an opposing miniature as the target." : !opposingTarget ? "Observation requires an opposing target." : string.Empty;
+            if (ActionMenuButton(Describe("RADIO FIRES OBSERVATION", "Mark an enemy for friendly fires.", "1 action", "Radio-equipped unit and selected opposing target.",
+                "Marks the target as observed by this side for the current round.", string.IsNullOrEmpty(radioReason), radioReason)))
+            { ConsumeAction(unit); target.observedBy = unit.side; target.observedRound = state.round; AddEvent(unit.name + " observes " + target.name + " for friendly fires.", "signal"); audio.Play(SoundCue.Objective); Save(); }
+
+            var treatReason = !canAct ? generalReason : target == null ? "Select a downed friendly casualty." :
+                target.side != unit.side || target.status != "downed" ? "The target must be a downed friendly." :
+                targetDistance > 1.5f ? string.Format("Move adjacent first; the casualty is {0:0.0}\" away.", targetDistance) : string.Empty;
+            if (ActionMenuButton(Describe("TREAT CASUALTY", "Attempt to stabilize a downed friendly.", "1 action + movement", "Downed friendly within 1.5\".",
+                "Roll Medicine; the result determines the casualty's new status.", string.IsNullOrEmpty(treatReason), treatReason))) Treat(unit, target);
+
+            var relayDistance = TacticalRules.Distance(unit.x, unit.y, 73f, 22f, request.board);
+            var relayReason = !canAct ? generalReason : unit.side != "blue" ? "Only BLUE units can complete this mission objective." :
+                relayDistance > 18f ? string.Format("Move within 18\" of the relay; currently {0:0.0}\" away.", relayDistance) : string.Empty;
+            if (ActionMenuButton(Describe("OBSERVE RELAY", "Advance the relay observation objective.", "1 action", "BLUE unit within 18\" of the relay.",
+                "Adds one uninterrupted observation turn toward the mission objective.", string.IsNullOrEmpty(relayReason), relayReason))) ObserveRelay(unit);
+
+            GUILayout.Space(5);
+            GUILayout.Label("MOUSE-OVER ACTION HELP", smallStyle);
+            GUILayout.Box(string.IsNullOrEmpty(hoveredActionHelp) ? "Point at any action above to see its cost, requirements, effect, and current availability." : hoveredActionHelp, guideStyle);
+        }
+
+        ActionDescriptor Describe(string title, string summary, string cost, string requirements, string effect, bool available, string unavailable)
+        {
+            return new ActionDescriptor { title = title, summary = summary, cost = cost, requirements = requirements, effect = effect, available = available, unavailable = unavailable };
+        }
+
+        bool ActionMenuButton(ActionDescriptor action)
+        {
+            var status = action.available ? "<color=#91d6be>READY</color>" : "<color=#9aa39c>UNAVAILABLE</color>";
+            var visible = "<b>" + action.title + "</b>  " + status + "\n" + action.summary;
+            var availability = action.available ? "<color=#91d6be>AVAILABLE NOW</color>" : "<color=#e1b275>UNAVAILABLE:</color> " + action.unavailable;
+            var detail = "<b>" + action.title + "</b>\n<b>COST:</b> " + action.cost + "\n<b>REQUIRES:</b> " + action.requirements + "\n<b>EFFECT:</b> " + action.effect + "\n" + availability;
+            var clicked = GUILayout.Button(new GUIContent(visible, detail), action.available ? actionButtonStyle : unavailableActionStyle, GUILayout.Height(43f));
+            if (GUILayoutUtility.GetLastRect().Contains(Event.current.mousePosition)) hoveredActionHelp = detail;
+            if (!clicked) return false;
+            if (action.available) return true;
+            notice = action.unavailable; audio.Play(SoundCue.Error); return false;
+        }
+
+        string ActionStateReason(UnitData unit)
+        {
+            if (!Effective(unit)) return "This unit cannot act while " + unit.status + ".";
+            if (unit.reaction) return string.Empty;
+            if (unit.side != state.activeSide) return "Wait for the " + unit.side.ToUpperInvariant() + " turn.";
+            if (unit.actionUsed) return "This unit has already used its action.";
+            return string.Empty;
         }
 
         bool ActionButton(string label, string tooltip, float height = 23f)
@@ -565,11 +660,11 @@ namespace DownRange.Tactical
             GUILayout.Space(8); GUILayout.Label("2  MOVE", titleStyle);
             GUILayout.Label("Click an empty map position within the selected unit's allowance. A unit normally moves once per turn. Toggle Impaired movement before moving through mud, climbing, or crawling.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("3  ACT", titleStyle);
-            GUILayout.Label("Select a target; Unity automatically checks eye-height LOS against terrain, structures, foliage, and intervening miniatures before Fire or Suppress. Use the LOS tool (L) to inspect any sight line and range. Utility actions include Focus, Radio observation, casualty treatment, and relay observation. Sprint trades the action for mobility.", guideStyle);
+            GUILayout.Label("Use the scrollable UNIT ACTIONS menu in the right panel. Every action remains visible with a short description and READY or UNAVAILABLE state. Point at a button for its cost, requirements, full effect, and the exact reason it cannot currently be used. Unity automatically checks eye-height LOS before Fire or Suppress; use the LOS tool (L) to inspect any sight line and range.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("4  REACT OR END", titleStyle);
             GUILayout.Label("Hold Reaction deliberately, or simply end the turn: every effective unit that has not acted automatically holds a reaction. Reaction fire is available during the opposing side's turn.", guideStyle);
             GUILayout.Space(10); GUILayout.Box("CURRENT SIDE: " + state.activeSide.ToUpperInvariant() + "    ·    ROUND " + state.round + "    ·    L: LOS tool    ·    Space: end turn    ·    F1: help", guideStyle);
-            GUILayout.Space(8); GUILayout.Label("Tip: hover over every miniature, roster entry, cover setting, and action button for contextual details. The right-hand panel always explains the selected unit's next legal step.", smallStyle);
+            GUILayout.Space(8); GUILayout.Label("Tip: action details appear both beneath the menu and beside the mouse pointer. Unavailable buttons can also be clicked to place their blocking reason in STATUS.", smallStyle);
             GUILayout.FlexibleSpace();
             var enabled = audio.Enabled; var next = GUILayout.Toggle(enabled, new GUIContent(" Tactical sound", "Enable or mute the procedural offline sound cues.")); if (next != enabled) { audio.Enabled = next; audio.Play(SoundCue.Click); }
             GUILayout.EndArea();
