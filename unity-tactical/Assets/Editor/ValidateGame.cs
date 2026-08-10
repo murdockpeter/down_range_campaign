@@ -67,8 +67,20 @@ namespace DownRange.Editor
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Combat lifesaver", medicalSkill = 8 }) == "USMC Corpsman", "Campaign medic model mapping failed.");
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Scout team", weapons = new[] { new WeaponData { name = "M249" } } }) == "USMC M249 Gunner", "Campaign automatic rifleman model mapping failed.");
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "red", role = "Relay guard" }) == "LPM Rifleman", "Campaign opposition model mapping failed.");
+            ValidateAudioCues();
             ValidateLineOfSight();
             Debug.Log("Down Range tactical validation passed.");
+        }
+
+        static void ValidateAudioCues()
+        {
+            var host = new GameObject("Audio cue validation fixture");
+            try
+            {
+                var audio = new TacticalAudio(host);
+                foreach (SoundCue cue in Enum.GetValues(typeof(SoundCue))) Require(audio.HasClip(cue), "Missing procedural audio clip for " + cue + ".");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(host); }
         }
 
         static void ValidateLineOfSight()

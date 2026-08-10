@@ -35,6 +35,8 @@ Open **Tactical battle** in the left rail for the mission briefing, then choose 
 
 The scrollable **Unit Actions** panel keeps every tactical choice visible: Move, Fire, Suppress, Hold Reaction, Sprint, Radio Fires Observation, Treat Casualty, and Observe Relay. Each button includes an immediate summary and READY/UNAVAILABLE state. Mouse-over help appears both in the panel and beside the pointer with the action cost, requirements, full effect, and any current blocking reason; clicking an unavailable action also reports that reason in the status area. Focus is shown as the whole-turn cost of actions that require it, rather than as a standalone bonus.
 
+Every tactical action has a distinct, procedurally generated offline sound cue: move preparation and movement, firing, suppression, held reactions, sprinting, radio observation, focused medical care, relay observation, LOS measurement, turn changes, impacts, mission completion, and unavailable-action feedback. The **Sound/Muted** control persists its setting locally.
+
 Unity automatically traces line of sight from a figure's eye or sensor height. Terrain rises, buildings, solid structures, trunks, and actual intervening miniature silhouettes block the line; foliage applies partial concealment. The measured line and selected-target line report the classification and first blocker, and firing rechecks the result immediately before adjudication.
 
 Generated woodland uses deterministic mixtures of broadleaf trees, tiered conifers, birch/aspen, narrow young trees, dead snags, and undergrowth. Light woods are open and provide partial foliage concealment; heavy woods form darker clustered groves whose dense canopy and brush can completely block sight.

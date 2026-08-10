@@ -82,7 +82,7 @@ namespace DownRange.Tactical
             losEndSet = false;
             measuredLos = null;
             notice = losTool ? "LOS tool active: click the first point, then the second. Right-click to reset." : "LOS tool closed.";
-            audio.Play(SoundCue.Click);
+            audio.Play(SoundCue.Los);
         }
 
         void LoadSprites()
@@ -188,7 +188,7 @@ namespace DownRange.Tactical
                 if (GUI.Button(new Rect(width - 492, 16, 68, 34), new GUIContent(audio.Enabled ? "SOUND" : "MUTED", "Toggle all tactical sound cues. This preference is saved."))) { audio.Enabled = !audio.Enabled; audio.Play(SoundCue.Click); }
                 if (GUI.Button(new Rect(width - 416, 16, 82, 34), new GUIContent("TURN HELP", "Open the turn sequence and action reference. Shortcut: F1."))) { showHelp = true; audio.Play(SoundCue.Click); }
                 if (GUI.Button(new Rect(width - 326, 16, 112, 34), new GUIContent("END TURN", "Finish this side's turn. Units that did not act will automatically hold a reaction. Shortcut: Space."))) EndTurn();
-                if (GUI.Button(new Rect(width - 206, 16, 190, 34), new GUIContent(state.completed ? "QUIT TO TRACKER" : "END MISSION", state.completed ? "Close the tactical game and return to Campaign Command." : "Score objectives and export the battle result to the campaign tracker."))) { audio.Play(SoundCue.Click); if (state.completed) Application.Quit(); else FinishBattle(); }
+                if (GUI.Button(new Rect(width - 206, 16, 190, 34), new GUIContent(state.completed ? "QUIT TO TRACKER" : "END MISSION", state.completed ? "Close the tactical game and return to Campaign Command." : "Score objectives and export the battle result to the campaign tracker."))) { if (state.completed) { audio.Play(SoundCue.Click); Application.Quit(); } else FinishBattle(); }
             }
             if (request == null || state == null) { GUI.Label(new Rect(30, 100, width - 60, 80), notice, titleStyle); return; }
 
@@ -257,7 +257,7 @@ namespace DownRange.Tactical
             if (current.type != EventType.MouseDown || !board.Contains(current.mousePosition)) return;
             if (current.button == 1)
             {
-                losStartSet = false; losEndSet = false; measuredLos = null; notice = "LOS measurement reset. Click the first point."; audio.Play(SoundCue.Click); current.Use(); return;
+                losStartSet = false; losEndSet = false; measuredLos = null; notice = "LOS measurement reset. Click the first point."; audio.Play(SoundCue.Los); current.Use(); return;
             }
             if (current.button != 0) return;
             Vector2 point;
@@ -276,7 +276,7 @@ namespace DownRange.Tactical
                 measuredLos = MeasureLos(losStart, losEnd); state.cover = measuredLos.classification;
                 notice = LosNotice(measuredLos, LosDistance(losStart, losEnd));
             }
-            audio.Play(SoundCue.Click); current.Use();
+            audio.Play(SoundCue.Los); current.Use();
         }
 
         void DrawLosTool(Rect board)
@@ -453,7 +453,7 @@ namespace DownRange.Tactical
 
             var move = Describe("MOVE", "Reposition on the tabletop.", "Movement", "Active-side unit with unused movement.",
                 "Click open terrain up to " + (TacticalRules.MovementAllowance(unit, state.impairedMovement) / (unit.sprint ? 2f : 1f)).ToString("0.#") + "\" away. Facing follows movement.", string.IsNullOrEmpty(moveReason), moveReason);
-            if (ActionMenuButton(move)) { notice = "MOVE ready: click an open point on the tabletop within the unit's allowance."; audio.Play(SoundCue.Click); }
+            if (ActionMenuButton(move)) { notice = "MOVE ready: click an open point on the tabletop within the unit's allowance."; audio.Play(SoundCue.MoveReady); }
 
             var attackReason = generalReason;
             if (string.IsNullOrEmpty(attackReason) && weapon == null) attackReason = "This unit has no ranged weapon.";
@@ -477,7 +477,7 @@ namespace DownRange.Tactical
             var reactionReason = canAct && !unit.reaction ? string.Empty : unit.reaction ? "This unit is already holding a reaction." : generalReason;
             if (ActionMenuButton(Describe("HOLD REACTION", "Reserve an attack for the enemy turn.", "1 action", "Effective unit with an unused action.",
                 "The unit may Fire during the opposing side's turn.", string.IsNullOrEmpty(reactionReason), reactionReason)))
-            { unit.actionUsed = true; unit.reaction = true; AddEvent(unit.name + " holds a reaction.", "action"); audio.Play(SoundCue.Click); Save(); }
+            { unit.actionUsed = true; unit.reaction = true; AddEvent(unit.name + " holds a reaction.", "action"); audio.Play(SoundCue.Reaction); Save(); }
 
             var sprintReason = !canAct ? generalReason : unit.kind != "troop" ? "Only troop units may sprint." : unit.sprint ? "This unit is already sprinting." : string.Empty;
             if (ActionMenuButton(Describe("SPRINT", unit.reaction ? "Move once during the opposing turn." : "Take a second Move this turn.", "1 action", "Troop unit with an unused action or saved Reaction.",
@@ -485,7 +485,7 @@ namespace DownRange.Tactical
             {
                 if (unit.reaction) { unit.reaction = false; unit.reactionMove = true; unit.actionUsed = true; AddEvent(unit.name + " uses its reaction to sprint; choose a destination.", "move"); }
                 else { unit.actionUsed = true; unit.sprint = true; AddEvent(unit.name + " sacrifices its action for a second Move.", "move"); }
-                audio.Play(SoundCue.Move); Save();
+                audio.Play(SoundCue.Sprint); Save();
             }
 
             var radioReason = !canAct ? generalReason : !unit.radio ? "This unit is not equipped with a radio." :
@@ -493,7 +493,7 @@ namespace DownRange.Tactical
                 selectedLos.classification == "blocked" ? "The observer must have line of sight to the target." : string.Empty;
             if (ActionMenuButton(Describe("RADIO FIRES OBSERVATION", "Mark a visible enemy for friendly fires.", "1 action", "Radio-equipped unit with LOS to a selected opposing target.",
                 "Gives friendly attacks against the target Advantage until this observer's next turn.", string.IsNullOrEmpty(radioReason), radioReason)))
-            { ConsumeAction(unit); target.observedBy = unit.side; target.observedRound = state.round; AddEvent(unit.name + " observes " + target.name + " for friendly fires.", "signal"); audio.Play(SoundCue.Objective); Save(); }
+            { ConsumeAction(unit); target.observedBy = unit.side; target.observedRound = state.round; AddEvent(unit.name + " observes " + target.name + " for friendly fires.", "signal"); audio.Play(SoundCue.Radio); Save(); }
 
             var treatReason = !canAct ? generalReason : unit.medicalSkill <= 0 ? "This unit lacks the required medical training and equipment." :
                 unit.moved ? "Focused medical care requires the unit to remain stationary for the entire turn." : target == null ? "Select a downed friendly casualty." :
@@ -605,7 +605,7 @@ namespace DownRange.Tactical
         void ObserveRelay(UnitData unit)
         {
             var range = TacticalRules.Distance(unit.x, unit.y, 73f, 22f, request.board); if (range > 18f) { notice = string.Format("Move within 18\" of the relay ({0:0.0}\" now).", range); audio.Play(SoundCue.Error); return; }
-            ConsumeAction(unit); state.observationTurns = Mathf.Clamp(state.observationTurns + 1, 0, 2); AddEvent(string.Format("{0} completes relay observation ({1}/2).", unit.name, state.observationTurns), "objective"); audio.Play(SoundCue.Objective); Save();
+            ConsumeAction(unit); state.observationTurns = Mathf.Clamp(state.observationTurns + 1, 0, 2); AddEvent(string.Format("{0} completes relay observation ({1}/2).", unit.name, state.observationTurns), "objective"); audio.Play(SoundCue.Relay); Save();
         }
 
         void EndTurn()
@@ -641,7 +641,7 @@ namespace DownRange.Tactical
                 objectives = state.objectives.Select(objective => new ObjectiveResult { id = objective.id, complete = objective.complete }).ToArray(),
                 casualties = blue.Where(unit => unit.status == "downed" || unit.status == "dead").Select(unit => new CasualtyResult { unitId = unit.id, category = unit.status == "dead" ? "KIA" : "WIA-S" }).ToArray()
             };
-            File.WriteAllText(resultPath, JsonUtility.ToJson(result, true)); state.completed = true; AddEvent(string.Format("Battle result exported: {0}, {1}/{2} objective points.", outcome, scoreEarned, scoreAvailable), "objective"); audio.Play(SoundCue.Objective); Save(); notice = "Result exported and ready for automatic campaign import. You may return to Campaign Command.";
+            File.WriteAllText(resultPath, JsonUtility.ToJson(result, true)); state.completed = true; AddEvent(string.Format("Battle result exported: {0}, {1}/{2} objective points.", outcome, scoreEarned, scoreAvailable), "objective"); audio.Play(SoundCue.Mission); Save(); notice = "Result exported and ready for automatic campaign import. You may return to Campaign Command.";
         }
         void SetObjective(string id, bool complete) { var objective = state.objectives.FirstOrDefault(item => item.id == id); if (objective != null) objective.complete = complete; }
         void AddEvent(string text, string kind)
