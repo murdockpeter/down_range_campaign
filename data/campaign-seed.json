@@ -87,10 +87,10 @@
       "Avenues of Approach": "West through woodland and farmland is concealed but civilian-sensitive; the A13 approach is fast and exposed."
     },
     "objectives": [
-      { "id": "o1", "text": "Observe the Grebņeva Relay for two uninterrupted turns", "points": 2, "complete": false },
-      { "id": "o2", "text": "Identify EW antenna and security element", "points": 2, "complete": false },
-      { "id": "o3", "text": "Exit at least 75% of the force from friendly edge", "points": 1, "complete": false },
-      { "id": "o4", "text": "Avoid raising the alarm", "points": 1, "complete": false }
+      { "id": "o1", "text": "Observe the Grebņeva Relay for two uninterrupted turns", "points": 2, "complete": false, "type": "observe-zone", "actionLabel": "OBSERVE RELAY", "side": "blue", "x": 73, "y": 22, "radius": 18, "requiredProgress": 2, "progress": 0, "lastProgressRound": 0, "uninterrupted": true, "requiresLos": true },
+      { "id": "o2", "text": "Identify EW antenna and security element", "points": 2, "complete": false, "type": "identify-units", "actionLabel": "IDENTIFY RELAY PERSONNEL", "side": "blue", "radius": 24, "requiredProgress": 2, "progress": 0, "lastProgressRound": 0, "difficulty": 4, "requiresLos": true, "targetUnitIds": ["r5", "r3", "r4"], "identifiedUnitIds": [] },
+      { "id": "o3", "text": "Extract at least 75% of BLUE effective through the southern edge", "points": 1, "complete": false, "type": "extract-force", "side": "blue", "threshold": 0.75, "edge": "south", "depth": 18 },
+      { "id": "o4", "text": "Avoid raising the alarm", "points": 1, "complete": false, "type": "avoid-alarm", "side": "blue", "radius": 36, "difficulty": 4, "requiresLos": true }
     ],
     "allocation": ["1st Squad scout team (4)", "UAS Team (1 operator + 1 quadcopter)", "Platoon HQ radio operator (1)"],
     "sync": [

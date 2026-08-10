@@ -6,7 +6,7 @@ namespace DownRange.Tactical
 {
     public enum SoundCue
     {
-        Click, MoveReady, Move, Fire, Suppress, Reaction, Sprint, Radio, Medical, Relay, Los, Hit, Objective, Turn, Mission, Error
+        Click, MoveReady, Move, Fire, Suppress, Reaction, Sprint, Radio, Medical, Relay, Los, Hit, Objective, Alarm, Turn, Mission, Error
     }
 
     public sealed class TacticalAudio
@@ -52,6 +52,7 @@ namespace DownRange.Tactical
             clips[SoundCue.Relay] = Make("Relay observation", .54f, (t, random) => Sweep(t, 340f, 880f, .38f) + Chime(t, .35f, 1040f));
             clips[SoundCue.Los] = Make("Line of sight", .30f, (t, random) => Chime(t, 0f, 880f) + Chime(t, .13f, 1320f));
             clips[SoundCue.Objective] = Make("Objective", .46f, (t, random) => Chime(t, 0f, 620f) + Chime(t, .13f, 780f) + Chime(t, .27f, 1040f));
+            clips[SoundCue.Alarm] = Make("Alarm raised", .72f, (t, random) => Chime(t, 0f, 960f) + Chime(t, .14f, 720f) + Chime(t, .28f, 960f) + Chime(t, .42f, 720f));
             clips[SoundCue.Turn] = Make("Turn", .28f, (t, random) => Chime(t, 0f, 440f) + Chime(t, .12f, 660f));
             clips[SoundCue.Mission] = Make("Mission complete", .72f, (t, random) => Chime(t, 0f, 440f) + Chime(t, .15f, 660f) + Chime(t, .30f, 880f) + Chime(t, .47f, 1100f));
             clips[SoundCue.Error] = Make("Unavailable", .15f, (t, random) => Mathf.Sin(t * 310f) * Mathf.Exp(-t * 13f) * .30f);

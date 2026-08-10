@@ -72,7 +72,25 @@ test('Mission 2 cannot bypass Mission 1 adjudication and activation is idempoten
   const first = activateMissionTwo(completed);
   const second = activateMissionTwo(first.state);
   assert.equal(second.activated, false);
+  assert.equal(second.upgraded, false);
   assert.equal(second.state.mission.number, 2);
+});
+
+test('Mission 2 objective rules upgrade without resetting earned progress', () => {
+  const completed = structuredClone(seed);
+  completed.campaign.turn = 2;
+  completed.mission.status = 'complete';
+  const active = activateMissionTwo(completed).state;
+  active.mission.objectives[0] = { id:'o1', text:active.mission.objectives[0].text, points:2, complete:false, progress:1, lastProgressRound:3 };
+  const result = activateMissionTwo(active);
+  assert.equal(result.activated, false);
+  assert.equal(result.upgraded, true);
+  assert.equal(result.state.mission.objectives[0].type, 'observe-zone');
+  assert.equal(result.state.mission.objectives[0].progress, 1);
+  assert.equal(result.state.mission.objectives[0].lastProgressRound, 3);
+  assert.equal(result.state.mission.objectives[2].type, 'extract-force');
+  assert.equal(result.state.mission.objectives[2].edge, 'south');
+  assert.equal(result.state.mission.objectives[3].difficulty, 4);
 });
 
 test('Silent Lantern TTS play assets are present', () => {

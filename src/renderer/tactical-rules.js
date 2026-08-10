@@ -28,6 +28,7 @@
   }
   function resolveAttack({ attacker, target, weapon, range, advantage = 0, cover = 'open', suppress = false, suppressionAimPossible = false }, rng = Math.random) {
     if (!attacker || !target || !weapon) return { ok: false, reason: 'Select an attacker, target, and weapon.' };
+    if (target.status === 'downed' || target.status === 'dead') return { ok: false, reason: 'That target is already out of the fight.' };
     if (target.status === 'dead') return { ok: false, reason: 'That target is already dead.' };
     if (range > weapon.range) return { ok: false, reason: `Target is ${range.toFixed(1)}\" away; ${weapon.name} range is ${weapon.range}\".` };
     if (cover === 'blocked' && (!suppress || !suppressionAimPossible)) return { ok: false, reason: suppress ? 'The attacker cannot aim within 6" of the concealed target.' : 'Total cover or concealment blocks line of sight.' };

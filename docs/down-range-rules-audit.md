@@ -32,6 +32,11 @@ The full 33-page **Rules v1.4.2** governs tactical adjudication. The Quick Start
 - Fires observation requires the radio user to see the target and grants attack Advantage until the observer's next turn, including across a round boundary (Rules 5.1).
 - Suppression can be attempted without direct line of sight when the first visible aim point is within six inches of the target. It still requires range and a weapon capable of attacking the target (Rules 2.6.5).
 - Blocked LOS results now retain the first blocker's distance so the six-inch suppression exception can be adjudicated from generated terrain.
+- Movement now samples the declared path in short segments. Only impaired segments cost twice their measured distance, while water, wet ground, dense woods, steep slopes, authored terrain, road use, and impassable structures are evaluated against unit mobility properties (Rules 2.3 and 2.3.1).
+- Saved Reactions now interrupt declared movement, fire, suppression, signals, treatment, and mission actions before the trigger resolves. Each eligible reactor may Fire, Sprint once at normal movement, or Pass and retain the Reaction; an incapacitated triggering unit loses its pending action (Rules 2.2.2.2 and example 6.5.2).
+- Mission objectives are data-driven. Observation zones enforce range, LOS, once-per-round progress, and consecutive-round continuity; identification objectives enforce specified targets, range, LOS, and a static Difficulty Skill check under the non-attack action rules (Rules 2.7).
+- Mission reconnaissance now uses the rules' open, partial, and total concealment classifications. Open enemy LOS confirms detection; partial concealment requires the observer to pass a scenario-defined Skill check with Disadvantage; total concealment blocks detection. The alarm test itself is a Mission #2 scenario adjudication, not an additional universal spotting rule (Rules 2.4.1.1 and 2.7).
+- Data-driven extraction zones require units to deploy beyond the friendly band and return effective before they count. Mission duration is enforced after both sides complete the final specified round; these are scenario contract rules rather than universal tactical actions.
 
 ## Known implementation work still required
 
@@ -41,10 +46,10 @@ The current campaign scenario uses a deliberately narrow subset of Down Range. T
 - explosive Radius placement, area damage, smoke, illumination, and ammunition tracking;
 - dice-based vehicle Defense, weapon-versus-armor die restrictions in Unity, and the Armored Addendum damage systems;
 - crew-served weapon assistance and static Skill modifiers;
-- weapon-specific Focus requirements, training, anti-air penalties, and sensor-specific concealment;
+- weapon-specific Focus requirements, training, anti-air penalties, and more detailed sensor-specific concealment interactions;
 - Main Effort, command initiative signaling, situational-awareness relays, EW actions, and remote-piloted vehicle Focus;
-- a true interrupt stack in which a Reaction is resolved before its triggering action;
-- path-by-path impaired movement and unit-specific terrain exemptions;
 - suppression Fan/cone selection against multiple units. The current UI resolves one selected target at a time.
+
+The current Reaction interrupt exposes Fire and Sprint because those are the supported reaction-capable actions in this resolver. Additional equipment and special-ability actions should join the prompt as those rules systems are implemented.
 
 This audit should be updated whenever one of these systems becomes authoritative in the Unity resolver.

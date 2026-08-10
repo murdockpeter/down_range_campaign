@@ -63,7 +63,13 @@ function createBattleRequest(state, options = {}) {
     },
     settings: { mode: 'hotseat', seed, autosave: true },
     objectives: state.mission.objectives.map(objective => ({
-      id: objective.id, text: objective.text, points: objective.points, complete: Boolean(objective.complete)
+      id: objective.id, text: objective.text, points: objective.points, complete: Boolean(objective.complete),
+      type: objective.type || '', actionLabel: objective.actionLabel || '', side: objective.side || 'blue',
+      x: Number(objective.x || 0), y: Number(objective.y || 0), radius: Number(objective.radius || 0),
+      requiredProgress: Number(objective.requiredProgress || 1), progress: Number(objective.progress || 0), difficulty: Number(objective.difficulty || 0),
+      uninterrupted: Boolean(objective.uninterrupted), requiresLos: Boolean(objective.requiresLos), threshold: Number(objective.threshold ?? .75),
+      edge: objective.edge || '', depth: Number(objective.depth || 0),
+      targetUnitIds: objective.targetUnitIds || [], identifiedUnitIds: objective.identifiedUnitIds || [], lastProgressRound: Number(objective.lastProgressRound || 0)
     })),
     units: state.tactical.units.map(unit => ({
       id: unit.id,
@@ -79,7 +85,7 @@ function createBattleRequest(state, options = {}) {
       medicalSkill: Number(unit.medicalSkill || 0),
       defense: Number(unit.defense || 0),
       status: unit.status || 'healthy',
-      radio: Boolean(unit.radio), flying: Boolean(unit.flying), ew: Boolean(unit.ew),
+      radio: Boolean(unit.radio), flying: Boolean(unit.flying), ew: Boolean(unit.ew), tracked: Boolean(unit.tracked), roadBound: Boolean(unit.roadBound), amphibious: Boolean(unit.amphibious), enteredField: Boolean(unit.enteredField),
       weapons: (unit.weapons || []).map(weapon => ({
         id: weapon.id, name: weapon.name, range: Number(weapon.range), difficulty: Number(weapon.difficulty),
         damageSides: Number(weapon.damage?.sides || 0), damageModifier: Number(weapon.damage?.modifier || 0),
@@ -137,7 +143,7 @@ function applyBattleResult(state, result) {
   next.mission.status = 'awaiting-aar';
   if (next.tactical) { next.tactical.committed = true; next.tactical.completed = true; }
   next.mission.tacticalSummary = {
-    source: 'Unity', rounds: Number(result.rounds || 0), alarm: Boolean(result.alarm),
+    source: 'Unity', rounds: Number(result.rounds || 0), alarm: Boolean(result.alarm), alarmReason: result.alarmReason || '', endedByDeadline: Boolean(result.endedByDeadline),
     observationTurns: Number(result.observationTurns || 0),
     scoreEarned: Number(result.scoreEarned ?? result.objectives.filter(item => item.complete).reduce((sum, item) => sum + Number(next.mission.objectives.find(objective => objective.id === item.id)?.points || 0), 0)),
     scoreAvailable: Number(result.scoreAvailable ?? next.mission.objectives.reduce((sum, item) => sum + Number(item.points || 0), 0)),

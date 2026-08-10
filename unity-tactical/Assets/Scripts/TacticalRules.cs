@@ -38,10 +38,28 @@ namespace DownRange.Tactical
             if (impaired) amount *= .5f;
             return amount;
         }
+        public static bool InExtractionZone(UnitData unit, ObjectiveData objective)
+        {
+            if (unit == null || objective == null) return false;
+            var depth = Math.Max(1f, Math.Min(49f, objective.depth > 0f ? objective.depth : 15f));
+            if (objective.edge == "north") return unit.y <= depth;
+            if (objective.edge == "west") return unit.x <= depth;
+            if (objective.edge == "east") return unit.x >= 100f - depth;
+            return unit.y >= 100f - depth;
+        }
+        public static DetectionResult Detection(UnitData observer, string concealment, int difficulty, DeterministicDice dice)
+        {
+            var result = new DetectionResult();
+            if (observer == null || concealment == "blocked") return result;
+            result.attempted = true;
+            if (concealment == "open") { result.detected = true; return result; }
+            result.skill = dice.Skill(observer.skill, -1); result.detected = result.skill.result >= Math.Max(1, difficulty); return result;
+        }
         public static AttackResult Attack(UnitData attacker, UnitData target, WeaponData weapon, BoardInfo board, int round, string cover, bool suppress, DeterministicDice dice, bool suppressionAimPossible = false)
         {
             var result = new AttackResult { valid = false, reason = "Invalid attack." };
             if (attacker == null || target == null || weapon == null) { result.reason = "Select an attacker, target, and weapon."; return result; }
+            if (target.status == "downed" || target.status == "dead") { result.reason = "That target is already out of the fight."; return result; }
             result.range = Distance(attacker, target, board);
             if (result.range > weapon.range) { result.reason = string.Format("Target is {0:0.0}\" away; range is {1:0.0}\".", result.range, weapon.range); return result; }
             if (cover == "blocked" && (!suppress || !suppressionAimPossible)) { result.reason = suppress ? "The attacker cannot aim within 6\" of the concealed target." : "Total cover or concealment blocks line of sight."; return result; }

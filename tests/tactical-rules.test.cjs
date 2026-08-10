@@ -44,6 +44,11 @@ test('range and armor die size are enforced', () => {
   assert.equal(rules.canDamage(rifle, troop({defenseDice:{count:1,sides:8}})), false);
 });
 
+test('direct attacks reject units already out of the fight', () => {
+  assert.equal(rules.resolveAttack({ attacker:troop(), target:troop({status:'downed'}), weapon:rifle, range:12 }).ok, false);
+  assert.equal(rules.resolveAttack({ attacker:troop(), target:troop({status:'dead'}), weapon:rifle, range:12 }).ok, false);
+});
+
 test('injury, sprint, and impaired terrain modify movement', () => {
   assert.equal(rules.movementAllowance(troop(), {sprint:true}), 16);
   assert.equal(rules.movementAllowance(troop({status:'injured'}), {sprint:true,impaired:true}), 4);

@@ -14,6 +14,14 @@ namespace DownRange.Editor
             var injured = new UnitData { id = "b", kind = "troop", move = 8f, skill = 6, defense = 4, status = "injured", sprint = true, x = 10, y = 0 };
             Require(Math.Abs(TacticalRules.Distance(healthy, injured, board) - 6.4f) < .001f, "Board distance conversion failed.");
             Require(Math.Abs(TacticalRules.MovementAllowance(injured, true) - 4f) < .001f, "Movement modifiers failed.");
+            var extraction = new ObjectiveData { edge = "south", depth = 18f };
+            healthy.y = 75f; Require(!TacticalRules.InExtractionZone(healthy, extraction), "A deployed unit was incorrectly counted in the extraction zone.");
+            healthy.y = 90f; Require(TacticalRules.InExtractionZone(healthy, extraction), "Southern extraction-zone classification failed."); healthy.y = 0f;
+            var observer = new UnitData { skill = 6 };
+            Require(TacticalRules.Detection(observer, "open", 4, new DeterministicDice(8)).detected, "Open LOS should confirm scenario detection.");
+            Require(!TacticalRules.Detection(observer, "blocked", 4, new DeterministicDice(8)).attempted, "Total concealment should block scenario detection.");
+            var partialDetection = TacticalRules.Detection(observer, "partial", 4, new DeterministicDice(8));
+            Require(partialDetection.attempted && partialDetection.skill.mode == -1, "Partial-concealment detection must roll with Disadvantage.");
             var weapon = new WeaponData { id = "m4", name = "M4", range = 5f, difficulty = 3, damageSides = 6 };
             var attack = TacticalRules.Attack(healthy, injured, weapon, board, 1, "open", false, new DeterministicDice(42));
             Require(!attack.valid && attack.reason.Contains("range"), "Weapon range validation failed.");
@@ -24,9 +32,18 @@ namespace DownRange.Editor
             Require(!blockedSuppression.valid, "Suppression without a nearby aim point should remain invalid.");
             var aimedSuppression = TacticalRules.Attack(healthy, injured, weapon, board, 1, "blocked", true, new DeterministicDice(42), true);
             Require(aimedSuppression.valid, "Suppression should allow a blocked target when an aim point is within six inches.");
+            injured.status = "downed";
+            var downedTarget = TacticalRules.Attack(healthy, injured, weapon, board, 1, "open", false, new DeterministicDice(42));
+            Require(!downedTarget.valid && downedTarget.reason.Contains("already"), "A unit already out of the fight must not be attacked again.");
             var samplePath = Path.Combine(Application.dataPath, "StreamingAssets", "sample-battle-request.json");
             var request = JsonUtility.FromJson<BattleRequest>(File.ReadAllText(samplePath));
             Require(request != null && request.contractVersion == 1 && request.units.Length >= 4, "Sample battle contract failed to deserialize.");
+            Require(request.objectives != null && request.objectives.Length == 4 && request.objectives[0].type == "observe-zone", "Sample objective rule contract failed to deserialize.");
+            Require(request.objectives[2].type == "extract-force" && request.objectives[2].edge == "south" && request.objectives[2].depth == 18f, "Extraction objective contract failed to deserialize.");
+            Require(request.objectives[3].type == "avoid-alarm" && request.objectives[3].difficulty == 4 && request.objectives[3].radius == 36f, "Detection objective contract failed to deserialize.");
+            var triggerJson = JsonUtility.ToJson(new PendingTriggerData { kind = "move", actorId = "a", destinationX = 12f, destinationY = 34f });
+            var trigger = JsonUtility.FromJson<PendingTriggerData>(triggerJson);
+            Require(trigger != null && trigger.kind == "move" && trigger.actorId == "a" && trigger.destinationY == 34f, "Reaction interrupt state failed to round-trip.");
             var spritePath = Path.Combine(Application.dataPath, "StreamingAssets", "Sprites");
             foreach (var name in new[] { "infantry.png", "medic.png", "uas.png" })
             {

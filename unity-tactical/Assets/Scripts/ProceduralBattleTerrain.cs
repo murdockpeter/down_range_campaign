@@ -437,6 +437,94 @@ namespace DownRange.Tactical
             return BattleLineOfSight.Evaluate(EyePoint(origin.x, origin.y, origin.flying), EyePoint(target.x, target.y, target.flying), origin.id, target.id);
         }
 
+        public MovementPathResult EvaluateMovementPath(UnitData unit, float startXPercent, float startYPercent, float endXPercent, float endYPercent, bool forceImpaired)
+        {
+            var result = new MovementPathResult();
+            if (unit == null) { result.valid = false; result.reason = "No moving unit is selected."; return result; }
+            result.distance = TacticalRules.Distance(startXPercent, startYPercent, endXPercent, endYPercent, board);
+            if (result.distance <= .001f) return result;
+            if (unit.flying) { result.cost = result.distance; return result; }
+
+            Physics.SyncTransforms();
+            var samples = Mathf.Max(1, Mathf.CeilToInt(result.distance / .35f));
+            var segment = result.distance / samples;
+            var previous = WorldPoint(startXPercent, startYPercent);
+            for (var index = 1; index <= samples; index++)
+            {
+                var amount = index / (float)samples;
+                var xPercent = Mathf.Lerp(startXPercent, endXPercent, amount); var yPercent = Mathf.Lerp(startYPercent, endYPercent, amount);
+                var point = WorldPoint(xPercent, yPercent); var road = IsRoadAt(point.x, point.z); var impaired = forceImpaired;
+                var terrainType = TerrainTypeAt(point.x, point.z);
+                if (terrainType == "built") return BlockedMovement(result, "A built structure blocks that path.");
+                if (terrainType == "water" || (!road && IsWaterAt(point.x, point.z)))
+                {
+                    if (unit.kind == "vehicle" && !unit.amphibious) return BlockedMovement(result, "That vehicle cannot enter water.");
+                    impaired = true;
+                }
+                if (terrainType == "woods" || terrainType == "wet" || (!road && IsWetAt(point.x, point.z))) impaired = true;
+                if (unit.roadBound && !unit.tracked && !road) impaired = true;
+                var horizontal = Vector2.Distance(new Vector2(previous.x, previous.z), new Vector2(point.x, point.z));
+                if (horizontal > .001f && Mathf.Abs(point.y - previous.y) / horizontal > .35f) impaired = true;
+
+                foreach (var collider in Physics.OverlapSphere(point + Vector3.up * .48f, .30f, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    var miniature = collider.GetComponentInParent<CampaignMiniatureMarker>();
+                    if (miniature != null)
+                    {
+                        if (index == samples && miniature.unitId != unit.id) return BlockedMovement(result, "Another unit occupies that destination.");
+                        continue;
+                    }
+                    var obstacle = collider.GetComponentInParent<BattleMovementObstacle>(); if (obstacle == null) continue;
+                    if (obstacle.classification == "blocked") return BlockedMovement(result, obstacle.label + " blocks that path.");
+                    if (obstacle.classification == "dense" && unit.kind == "vehicle" && !unit.tracked) return BlockedMovement(result, obstacle.label + " is impassable to that vehicle.");
+                    impaired = true;
+                }
+
+                result.cost += segment * (impaired ? 2f : 1f);
+                if (impaired) result.impairedDistance += segment;
+                previous = point;
+            }
+            return result;
+        }
+
+        MovementPathResult BlockedMovement(MovementPathResult result, string reason) { result.valid = false; result.reason = reason; return result; }
+
+        string TerrainTypeAt(float x, float z)
+        {
+            if (surfaceColumns <= 0 || surfaceRows <= 0) return "";
+            var column = Mathf.Clamp(Mathf.FloorToInt((x / board.widthInches + .5f) * surfaceColumns), 0, surfaceColumns - 1);
+            var row = Mathf.Clamp(Mathf.FloorToInt((z / board.heightInches + .5f) * surfaceRows), 0, surfaceRows - 1);
+            TerrainCellData cell; return authoredCells.TryGetValue(row * 10000 + column, out cell) ? (cell.type ?? "").ToLowerInvariant() : "";
+        }
+
+        bool IsWetAt(float x, float z)
+        {
+            if (profile.wetGround < .25f) return false;
+            var broad = Mathf.PerlinNoise(noiseX + x * .11f, noiseZ + z * .11f);
+            return broad < Mathf.Lerp(.16f, .38f, profile.wetGround);
+        }
+
+        bool IsWaterAt(float x, float z)
+        {
+            if (profile.water < .08f) return false;
+            var crossing = profile.archetype == "dam-crossing";
+            var width = crossing ? board.widthInches : board.widthInches * Mathf.Lerp(.16f, .34f, profile.water);
+            var depth = crossing ? board.heightInches * .34f : board.heightInches * .22f;
+            var centerX = crossing ? 0f : -board.widthInches * .32f; var centerZ = crossing ? -board.heightInches * .28f : board.heightInches * .30f;
+            return Mathf.Abs(x - centerX) <= width * .5f && Mathf.Abs(z - centerZ) <= depth * .5f;
+        }
+
+        bool IsRoadAt(float x, float z)
+        {
+            var pattern = profile.roadPattern ?? "";
+            if (pattern == "street-grid" || pattern == "junction" || pattern == "base-loop")
+                return Mathf.Abs(z) <= 2.5f || Mathf.Abs(x - 8f) <= 2.5f || (pattern == "street-grid" && Mathf.Abs(x + 14f) <= 2f);
+            if (pattern == "rail-yard") return Mathf.Abs(z + 3f) <= 2.25f;
+            if (pattern == "causeway") return Mathf.Abs(z) <= 2.75f;
+            var horizontalWidth = pattern == "service-road" ? 2.1f : 1.3f;
+            return Mathf.Abs(z - 3f) <= horizontalWidth || Mathf.Abs(x - 14f) <= 1.4f;
+        }
+
         Vector3 EyePoint(float xPercent, float yPercent, bool flying)
         {
             return WorldPoint(xPercent, yPercent) + Vector3.up * (flying ? 2.25f : 1.45f);
@@ -453,13 +541,35 @@ namespace DownRange.Tactical
         {
             var item = GameObject.CreatePrimitive(type); item.name = name; item.transform.SetParent(root); item.transform.position = position; item.transform.localScale = scale;
             var renderer = item.GetComponent<Renderer>(); renderer.sharedMaterial = material; renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; renderer.receiveShadows = true;
-            var collider = item.GetComponent<Collider>(); var classification = LosClassification(name);
-            if (collider != null && classification == null) UnityEngine.Object.Destroy(collider);
+            var collider = item.GetComponent<Collider>(); var classification = LosClassification(name); var movementClassification = MovementClassification(name);
+            if (collider != null && classification == null && movementClassification == null) UnityEngine.Object.Destroy(collider);
             else if (collider != null)
             {
-                var obstacle = item.AddComponent<BattleLosObstacle>(); obstacle.classification = classification; obstacle.label = LosLabel(name);
+                if (classification != null) { var obstacle = item.AddComponent<BattleLosObstacle>(); obstacle.classification = classification; obstacle.label = LosLabel(name); }
+                if (movementClassification != null) { var movement = item.AddComponent<BattleMovementObstacle>(); movement.classification = movementClassification; movement.label = MovementLabel(name); }
             }
             return item;
+        }
+
+        string MovementClassification(string name)
+        {
+            var value = (name ?? "").ToLowerInvariant();
+            if (value.Contains("building") || value.Contains("roof") || value.Contains("tree trunk") || value.Contains("relay mast") || value.Contains("dam wall")) return "blocked";
+            if (value.Contains("heavy foliage")) return "dense";
+            if (value == "water") return "impaired";
+            return null;
+        }
+
+        string MovementLabel(string name)
+        {
+            var value = (name ?? "").ToLowerInvariant();
+            if (value.Contains("building") || value.Contains("roof")) return "building";
+            if (value.Contains("tree trunk")) return "tree trunk";
+            if (value.Contains("heavy foliage")) return "dense woods";
+            if (value.Contains("relay mast")) return "relay mast";
+            if (value.Contains("dam wall")) return "dam wall";
+            if (value == "water") return "water";
+            return name;
         }
 
         string LosClassification(string name)

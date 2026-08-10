@@ -56,11 +56,21 @@ test('Mission 2 launches as Ghost Frequency on the generated relay compound', ()
   assert.equal(request.mission.durationTurns, 10);
   assert.equal(request.units.length, 11);
   assert.equal(request.objectives.length, 4);
+  assert.equal(request.objectives[0].type, 'observe-zone');
+  assert.equal(request.objectives[0].requiredProgress, 2);
+  assert.equal(request.objectives[1].type, 'identify-units');
+  assert.deepEqual(request.objectives[1].targetUnitIds, ['r5','r3','r4']);
+  assert.equal(request.objectives[2].type, 'extract-force');
+  assert.equal(request.objectives[2].edge, 'south');
+  assert.equal(request.objectives[2].depth, 18);
+  assert.equal(request.objectives[3].type, 'avoid-alarm');
+  assert.equal(request.objectives[3].difficulty, 4);
+  assert.equal(request.objectives[3].radius, 36);
 });
 
 test('battle result imports objectives and casualties once', () => {
   const state={...structuredClone(seed),tactical:{units:structuredClone(tactical)},unityBattle:{pendingRequestId:'req-1',importedResultIds:[]}};
-  const result={contractVersion:1,requestId:'req-1',resultId:'result-1',completedAt:'2031-09-14T05:10:00Z',rounds:6,alarm:true,observationTurns:2,scoreEarned:2,scoreAvailable:6,outcome:'Mission setback',terrainLocationId:'hill402',units:[{id:'b1',x:5,y:80,facing:63,status:'downed'},{id:'r1',x:70,y:20,facing:180,status:'healthy'}],objectives:[{id:'o1',complete:true}],casualties:[{unitId:'b1',category:'WIA-S'}],events:[{round:2,text:'Contact'}]};
+  const result={contractVersion:1,requestId:'req-1',resultId:'result-1',completedAt:'2031-09-14T05:10:00Z',rounds:6,alarm:true,alarmReason:'Guard detected Scout.',endedByDeadline:true,observationTurns:2,scoreEarned:2,scoreAvailable:6,outcome:'Mission setback',terrainLocationId:'hill402',units:[{id:'b1',x:5,y:80,facing:63,status:'downed'},{id:'r1',x:70,y:20,facing:180,status:'healthy'}],objectives:[{id:'o1',complete:true}],casualties:[{unitId:'b1',category:'WIA-S'}],events:[{round:2,text:'Contact'}]};
   const imported=applyBattleResult(state,result);
   assert.equal(imported.state.mission.objectives[0].complete,true);
   assert.equal(imported.state.tactical.units[0].facing,63);
@@ -69,6 +79,8 @@ test('battle result imports objectives and casualties once', () => {
   assert.equal(imported.state.mission.tacticalSummary.scoreEarned,2);
   assert.equal(imported.state.mission.tacticalSummary.outcome,'Mission setback');
   assert.equal(imported.state.mission.tacticalSummary.terrainLocationId,'hill402');
+  assert.equal(imported.state.mission.tacticalSummary.alarmReason,'Guard detected Scout.');
+  assert.equal(imported.state.mission.tacticalSummary.endedByDeadline,true);
   assert.equal(imported.state.tactical.committed,true);
   const replayState=structuredClone(imported.state);replayState.unityBattle.pendingRequestId='req-1';
   assert.equal(applyBattleResult(replayState,result).alreadyImported,true);

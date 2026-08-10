@@ -53,13 +53,15 @@ function launchUnityBattle(state) {
   const pendingPath = state?.unityBattle?.requestPath;
   if (state?.unityBattle?.pendingRequestId && pendingPath && fs.existsSync(pendingPath)) {
     const existingRequest = JSON.parse(fs.readFileSync(pendingPath, 'utf8'));
-    if (!existingRequest?.board?.terrain) {
-      const upgraded = createBattleRequest(state, {
-        requestId: state.unityBattle.pendingRequestId,
-        createdAt: existingRequest.createdAt,
-        seed: Number(existingRequest?.settings?.seed || 1),
-        mapPath: ''
-      });
+    const upgraded = createBattleRequest(state, {
+      requestId: state.unityBattle.pendingRequestId,
+      createdAt: existingRequest.createdAt,
+      seed: Number(existingRequest?.settings?.seed || 1),
+      mapPath: ''
+    });
+    const objectiveRules = objectives => (objectives || []).map(({id,type,actionLabel,side,x,y,radius,requiredProgress,difficulty,uninterrupted,requiresLos,threshold,edge,depth,targetUnitIds}) => ({id,type,actionLabel,side,x,y,radius,requiredProgress,difficulty,uninterrupted,requiresLos,threshold,edge,depth,targetUnitIds}));
+    const requiresRulesUpgrade = !existingRequest?.board?.terrain || JSON.stringify(objectiveRules(existingRequest.objectives)) !== JSON.stringify(objectiveRules(upgraded.objectives));
+    if (requiresRulesUpgrade) {
       fs.writeFileSync(pendingPath, JSON.stringify(upgraded, null, 2), 'utf8');
     }
     const resumed = spawn(player, ['--battle-request', pendingPath], { cwd: path.dirname(player), detached: true, stdio: 'ignore', windowsHide: false });

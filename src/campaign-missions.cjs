@@ -34,10 +34,10 @@ const missionTwo = {
       'Avenues of Approach': 'The southern drainage is slow and concealed; the western treeline is faster but exposed to the patrol; the service road is unsuitable except for emergency withdrawal.'
     },
     objectives: [
-      { id: 'o1', text: 'Observe the Grebņeva Relay for two uninterrupted turns', points: 2, complete: false },
-      { id: 'o2', text: 'Identify the EW antenna and security element', points: 2, complete: false },
-      { id: 'o3', text: 'End with at least 75% of BLUE effective', points: 1, complete: false },
-      { id: 'o4', text: 'Avoid raising the alarm', points: 1, complete: false }
+      { id: 'o1', text: 'Observe the Grebņeva Relay for two uninterrupted turns', points: 2, complete: false, type: 'observe-zone', actionLabel: 'OBSERVE RELAY', side: 'blue', x: 73, y: 22, radius: 18, requiredProgress: 2, progress: 0, lastProgressRound: 0, uninterrupted: true, requiresLos: true },
+      { id: 'o2', text: 'Identify the EW antenna and security element', points: 2, complete: false, type: 'identify-units', actionLabel: 'IDENTIFY RELAY PERSONNEL', side: 'blue', radius: 24, requiredProgress: 2, progress: 0, lastProgressRound: 0, difficulty: 4, requiresLos: true, targetUnitIds: ['r5', 'r3', 'r4'], identifiedUnitIds: [] },
+      { id: 'o3', text: 'Extract at least 75% of BLUE effective through the southern edge', points: 1, complete: false, type: 'extract-force', side: 'blue', threshold: .75, edge: 'south', depth: 18 },
+      { id: 'o4', text: 'Avoid raising the alarm', points: 1, complete: false, type: 'avoid-alarm', side: 'blue', radius: 36, difficulty: 4, requiresLos: true }
     ],
     allocation: [
       '1st Squad scout team (4)',
@@ -131,7 +131,20 @@ const missionTwo = {
 
 function activateMissionTwo(state) {
   if (!state?.campaign || !state?.mission) throw new Error('Campaign state is unavailable.');
-  if (Number(state.mission.number) === 2) return { state: structuredClone(state), activated: false };
+  if (Number(state.mission.number) === 2) {
+    const next = structuredClone(state);
+    const before = JSON.stringify(next.mission.objectives || []);
+    for (const objective of next.mission.objectives || []) {
+      const definition = missionTwo.mission.objectives.find(item => item.id === objective.id); if (!definition) continue;
+      const progress = objective.progress; const complete = objective.complete; const identifiedUnitIds = objective.identifiedUnitIds; const lastProgressRound = objective.lastProgressRound;
+      Object.assign(objective, structuredClone(definition));
+      objective.complete = Boolean(complete);
+      if (progress != null || definition.progress != null) objective.progress = Number(progress || 0);
+      if (lastProgressRound != null || definition.lastProgressRound != null) objective.lastProgressRound = Number(lastProgressRound || 0);
+      if (identifiedUnitIds != null || definition.identifiedUnitIds != null) objective.identifiedUnitIds = identifiedUnitIds || objective.identifiedUnitIds || [];
+    }
+    return { state: next, activated: false, upgraded: before !== JSON.stringify(next.mission.objectives || []) };
+  }
   if (Number(state.mission.number) !== 1 || state.mission.status !== 'complete' || Number(state.campaign.turn) < 2) {
     throw new Error('Mission #2 becomes available after Mission #1 has been adjudicated.');
   }
@@ -170,7 +183,7 @@ function activateMissionTwo(state) {
   }
 
   next.campaign.lastUpdated = new Date().toISOString();
-  return { state: next, activated: true };
+  return { state: next, activated: true, upgraded: true };
 }
 
 module.exports = { missionTwo, activateMissionTwo };

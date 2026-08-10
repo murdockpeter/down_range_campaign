@@ -15,10 +15,10 @@
   },
   "settings": { "mode": "hotseat", "seed": 142031, "autosave": true },
   "objectives": [
-    { "id": "o1", "text": "Observe relay for two turns", "points": 2, "complete": false },
-    { "id": "o2", "text": "Identify EW and security", "points": 2, "complete": false },
-    { "id": "o3", "text": "Exit with 75% effective", "points": 1, "complete": false },
-    { "id": "o4", "text": "Avoid raising the alarm", "points": 1, "complete": false }
+    { "id": "o1", "text": "Observe relay for two uninterrupted turns", "points": 2, "complete": false, "type": "observe-zone", "actionLabel": "OBSERVE RELAY", "side": "blue", "x": 73, "y": 22, "radius": 18, "requiredProgress": 2, "progress": 0, "difficulty": 0, "uninterrupted": true, "requiresLos": true, "threshold": 0, "targetUnitIds": [], "identifiedUnitIds": [], "lastProgressRound": 0 },
+    { "id": "o2", "text": "Identify EW antenna and security element", "points": 2, "complete": false, "type": "identify-units", "actionLabel": "IDENTIFY TARGET", "side": "blue", "x": 0, "y": 0, "radius": 24, "requiredProgress": 2, "progress": 0, "difficulty": 4, "uninterrupted": false, "requiresLos": true, "threshold": 0, "targetUnitIds": ["r2", "r1"], "identifiedUnitIds": [], "lastProgressRound": 0 },
+    { "id": "o3", "text": "Extract at least 75% of BLUE effective through the southern edge", "points": 1, "complete": false, "type": "extract-force", "actionLabel": "", "side": "blue", "x": 0, "y": 0, "radius": 0, "requiredProgress": 1, "progress": 0, "difficulty": 0, "uninterrupted": false, "requiresLos": false, "threshold": 0.75, "edge": "south", "depth": 18, "targetUnitIds": [], "identifiedUnitIds": [], "lastProgressRound": 0 },
+    { "id": "o4", "text": "Avoid raising the alarm", "points": 1, "complete": false, "type": "avoid-alarm", "actionLabel": "", "side": "blue", "x": 0, "y": 0, "radius": 36, "requiredProgress": 1, "progress": 0, "difficulty": 4, "uninterrupted": false, "requiresLos": true, "threshold": 0, "targetUnitIds": [], "identifiedUnitIds": [], "lastProgressRound": 0 }
   ],
   "units": [
     { "id": "b1", "side": "blue", "name": "Scout lead", "role": "Team leader", "forceId": "sq1", "kind": "troop", "modelId": "USMC Officer", "x": 12, "y": 82, "facing": 0, "facingSet": true, "move": 8, "skill": 6, "medicalSkill": 0, "defense": 4, "status": "healthy", "radio": true, "flying": false, "ew": false, "weapons": [{ "id": "m4", "name": "M4 carbine", "range": 36, "difficulty": 3, "damageSides": 6, "damageModifier": 0, "fan": 1, "radius": 0, "ammunition": -1 }] },

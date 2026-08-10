@@ -3,6 +3,12 @@ using UnityEngine;
 
 namespace DownRange.Tactical
 {
+    public sealed class BattleMovementObstacle : MonoBehaviour
+    {
+        public string classification = "blocked";
+        public string label = "obstacle";
+    }
+
     public sealed class BattleLosObstacle : MonoBehaviour
     {
         public string label;
