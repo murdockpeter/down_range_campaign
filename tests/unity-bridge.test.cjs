@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { TERRAIN_PROFILES, terrainProfileFor, createBattleRequest, applyBattleResult } = require('../src/unity-bridge.cjs');
+const { activateMissionTwo } = require('../src/campaign-missions.cjs');
 
 const root = path.resolve(__dirname, '..');
 const seed = JSON.parse(fs.readFileSync(path.join(root, 'data', 'campaign-seed.json'), 'utf8'));
@@ -40,6 +41,21 @@ test('every campaign target node has a deterministic generative terrain profile'
     assert.ok(['heavy','light','sparse'].includes(profile.woodland));
     assert.ok(profile.features.length>=4);
   }
+});
+
+test('Mission 2 launches as Ghost Frequency on the generated relay compound', () => {
+  const completed = structuredClone(seed);
+  completed.campaign.turn = 2;
+  completed.mission.status = 'complete';
+  const activated = activateMissionTwo(completed).state;
+  const request = createBattleRequest(activated, { requestId:'mission-2', createdAt:'2031-09-14T21:45:00Z', seed:84 });
+  assert.equal(request.mission.number, 2);
+  assert.equal(request.mission.title, 'Ghost Frequency');
+  assert.equal(request.mission.locationId, 'radio');
+  assert.equal(request.board.terrain.archetype, 'relay-compound');
+  assert.equal(request.mission.durationTurns, 10);
+  assert.equal(request.units.length, 11);
+  assert.equal(request.objectives.length, 4);
 });
 
 test('battle result imports objectives and casualties once', () => {

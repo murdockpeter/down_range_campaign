@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { clamp, resolveAar } = require('../src/campaign-engine.cjs');
+const { missionTwo, activateMissionTwo } = require('../src/campaign-missions.cjs');
 
 const root = path.resolve(__dirname, '..');
 const seed = JSON.parse(fs.readFileSync(path.join(root, 'data', 'campaign-seed.json'), 'utf8'));
@@ -38,6 +39,40 @@ test('AAR resolution advances turn and clamps momentum', () => {
   assert.equal(result.state.campaign.momentum, 3);
   assert.equal(result.state.mission.status, 'complete');
   assert.equal(clamp(-8, -3, 3), -3);
+});
+
+test('Mission 2 activates from an adjudicated Mission 1 without discarding campaign state', () => {
+  const completed = structuredClone(seed);
+  completed.campaign.turn = 2;
+  completed.campaign.momentum = 1;
+  completed.mission.status = 'complete';
+  completed.history.unshift({ id:'mission-one', turn:1, mission:'Silent Lantern', outcome:'Operational success', summary:'Returned undetected.', momentumDelta:1, timestamp:'2031-09-14T06:00:00Z' });
+  completed.casualties.push({ id:'returning', name:'PFC Test', unit:'3rd Squad', category:'WIA-L', returnTurn:2, note:'Recovering' });
+  completed.forces.find(force => force.id === 'sq3').current = 8;
+
+  const result = activateMissionTwo(completed);
+  assert.equal(result.activated, true);
+  assert.equal(result.state.mission.number, 2);
+  assert.equal(result.state.mission.title, missionTwo.mission.title);
+  assert.equal(result.state.mission.locationId, 'radio');
+  assert.equal(result.state.planning.missionNumber, 2);
+  assert.equal(result.state.tactical.scenario, 'Ghost Frequency');
+  assert.equal(result.state.campaign.momentum, 1);
+  assert.equal(result.state.history[0].id, 'mission-one');
+  assert.equal(result.state.casualties.find(item => item.id === 'returning').category, 'RTD');
+  assert.equal(result.state.forces.find(force => force.id === 'sq3').current, 9);
+  assert.equal(result.state.intel[0].id, 'm2-i1');
+});
+
+test('Mission 2 cannot bypass Mission 1 adjudication and activation is idempotent', () => {
+  assert.throws(() => activateMissionTwo(seed), /after Mission #1 has been adjudicated/);
+  const completed = structuredClone(seed);
+  completed.campaign.turn = 2;
+  completed.mission.status = 'complete';
+  const first = activateMissionTwo(completed);
+  const second = activateMissionTwo(first.state);
+  assert.equal(second.activated, false);
+  assert.equal(second.state.mission.number, 2);
 });
 
 test('Silent Lantern TTS play assets are present', () => {

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('campaignAPI', {
   reset: () => ipcRenderer.invoke('campaign:reset'),
   exportCampaign: (state) => ipcRenderer.invoke('campaign:export', state),
   importCampaign: () => ipcRenderer.invoke('campaign:import'),
+  activateMissionTwo: (state) => ipcRenderer.invoke('campaign:activate-mission-two', state),
   openReference: (fileName) => ipcRenderer.invoke('library:open', fileName),
   openLibraryFolder: () => ipcRenderer.invoke('library:folder'),
   getMapsKey: () => ipcRenderer.invoke('maps-key:get'),

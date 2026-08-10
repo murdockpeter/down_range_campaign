@@ -6,6 +6,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { createBattleRequest, applyBattleResult } = require('./unity-bridge.cjs');
 const { resetUnityFiles } = require('./unity-reset.cjs');
+const { activateMissionTwo } = require('./campaign-missions.cjs');
 
 const seedPath = path.join(__dirname, '..', 'data', 'campaign-seed.json');
 const libraryPath = path.join(__dirname, '..', 'docs', 'official');
@@ -220,6 +221,11 @@ app.whenReady().then(async () => {
     const state = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf8'));
     saveState(state);
     return { canceled: false, state };
+  });
+  ipcMain.handle('campaign:activate-mission-two', (_event, state) => {
+    const result = activateMissionTwo(state);
+    saveState(result.state);
+    return result;
   });
   ipcMain.handle('library:open', async (_event, fileName) => {
     const resolved = path.resolve(libraryPath, fileName);

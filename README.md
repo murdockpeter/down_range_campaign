@@ -45,6 +45,8 @@ Roads and rails are terrain-conforming shared meshes rather than rigid boxes. Th
 
 Unity autosaves `battle-state.json` after every material action and exports `battle-result.json` when the mission ends. Campaign Command watches for that result and automatically applies objective scoring, final unit positions and facings, force losses, casualties, and the tactical log exactly once.
 
+After Mission #1 is adjudicated, the **After action** view offers **Begin Mission #2**. Mission #2, **Ghost Frequency**, is a close-collection operation at the generated Grebņeva Relay compound with its own mission package, MCPP workspace, intelligence update, deployment, and Unity tactical battle. Existing campaign momentum, history, forces, supplies, and casualties carry forward; casualties due to return that turn are restored to their parent unit.
+
 Choose **One Star 3D** from the same tactical command bar to launch the separate Calloni scenario module. Its current implementation status and controls are documented in `docs/one-star-3d.md`.
 
 Google Maps is optional. Open the key control in the lower-left rail and enter a Maps JavaScript API browser key. The key is protected with Electron `safeStorage`, saved outside the repository, and never included in campaign exports. For browser restrictions, allow `http://127.0.0.1:43118/*`.
