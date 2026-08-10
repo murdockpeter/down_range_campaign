@@ -26,11 +26,11 @@
     if (!target.defenseDice) return true;
     return Number(weapon.damage?.sides || 0) >= Number(target.defenseDice.sides || 0);
   }
-  function resolveAttack({ attacker, target, weapon, range, advantage = 0, cover = 'open', suppress = false }, rng = Math.random) {
+  function resolveAttack({ attacker, target, weapon, range, advantage = 0, cover = 'open', suppress = false, suppressionAimPossible = false }, rng = Math.random) {
     if (!attacker || !target || !weapon) return { ok: false, reason: 'Select an attacker, target, and weapon.' };
     if (target.status === 'dead') return { ok: false, reason: 'That target is already dead.' };
     if (range > weapon.range) return { ok: false, reason: `Target is ${range.toFixed(1)}\" away; ${weapon.name} range is ${weapon.range}\".` };
-    if (cover === 'blocked') return { ok: false, reason: 'Total cover or concealment blocks line of sight.' };
+    if (cover === 'blocked' && (!suppress || !suppressionAimPossible)) return { ok: false, reason: suppress ? 'The attacker cannot aim within 6" of the concealed target.' : 'Total cover or concealment blocks line of sight.' };
     if (!canDamage(weapon, target)) return { ok: false, reason: `${weapon.name} cannot penetrate this target's defense die.` };
     const hasAdvantage = advantage > 0 || target.moved === false || target.ambushed;
     const hasDisadvantage = advantage < 0 || cover === 'partial' || attacker.status === 'injured' || attacker.suppressed;

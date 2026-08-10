@@ -17,6 +17,13 @@ namespace DownRange.Editor
             var weapon = new WeaponData { id = "m4", name = "M4", range = 5f, difficulty = 3, damageSides = 6 };
             var attack = TacticalRules.Attack(healthy, injured, weapon, board, 1, "open", false, new DeterministicDice(42));
             Require(!attack.valid && attack.reason.Contains("range"), "Weapon range validation failed.");
+            injured.x = 5f; injured.moved = false;
+            var canceledModifiers = TacticalRules.Attack(healthy, injured, weapon, board, 1, "partial", false, new DeterministicDice(42));
+            Require(canceledModifiers.valid && canceledModifiers.skill.mode == 0, "Advantage and disadvantage must cancel completely.");
+            var blockedSuppression = TacticalRules.Attack(healthy, injured, weapon, board, 1, "blocked", true, new DeterministicDice(42));
+            Require(!blockedSuppression.valid, "Suppression without a nearby aim point should remain invalid.");
+            var aimedSuppression = TacticalRules.Attack(healthy, injured, weapon, board, 1, "blocked", true, new DeterministicDice(42), true);
+            Require(aimedSuppression.valid, "Suppression should allow a blocked target when an aim point is within six inches.");
             var samplePath = Path.Combine(Application.dataPath, "StreamingAssets", "sample-battle-request.json");
             var request = JsonUtility.FromJson<BattleRequest>(File.ReadAllText(samplePath));
             Require(request != null && request.contractVersion == 1 && request.units.Length >= 4, "Sample battle contract failed to deserialize.");
@@ -76,7 +83,7 @@ namespace DownRange.Editor
                 var partial = BattleLineOfSight.Evaluate(start, end); Require(partial.classification == "partial" && partial.blocker == "test foliage", "Partial LOS classification failed.");
                 var wall = GameObject.CreatePrimitive(PrimitiveType.Cube); wall.transform.SetParent(root.transform); wall.transform.position = new Vector3(1007f, 2f, 0f);
                 var wallObstacle = wall.AddComponent<BattleLosObstacle>(); wallObstacle.label = "test building"; wallObstacle.classification = "blocked"; Physics.SyncTransforms();
-                var blocked = BattleLineOfSight.Evaluate(start, end); Require(blocked.classification == "blocked" && blocked.blocker == "test building", "Blocked LOS classification failed.");
+                var blocked = BattleLineOfSight.Evaluate(start, end); Require(blocked.classification == "blocked" && blocked.blocker == "test building" && blocked.blockerDistance > 0f, "Blocked LOS classification failed.");
                 var unitRoot = new GameObject("Test friendly - 3D campaign miniature"); unitRoot.transform.SetParent(root.transform); unitRoot.transform.position = new Vector3(1004f, 2f, 4f);
                 var marker = unitRoot.AddComponent<CampaignMiniatureMarker>(); marker.unitId = "friendly";
                 var unitBody = GameObject.CreatePrimitive(PrimitiveType.Cube); unitBody.transform.SetParent(unitRoot.transform); unitBody.transform.localPosition = Vector3.zero; Physics.SyncTransforms();

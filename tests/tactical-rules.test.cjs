@@ -24,6 +24,21 @@ test('partial cover imposes disadvantage and total cover blocks an attack', () =
   assert.equal(rules.resolveAttack({ attacker:troop(), target:troop(), weapon:rifle, range:12, cover:'blocked' }).ok, false);
 });
 
+test('any advantage and any disadvantage cancel completely instead of stacking', () => {
+  const result = rules.resolveAttack({ attacker:troop(), target:troop({moved:false,ambushed:true}), weapon:rifle, range:12, cover:'partial' }, sequence([0.6]));
+  assert.equal(result.ok, true);
+  assert.equal(result.skill.mode, 'normal');
+  assert.deepEqual(result.skill.rolls, [4]);
+});
+
+test('suppression can use a blocked line when an aim point is within six inches', () => {
+  const denied = rules.resolveAttack({ attacker:troop(), target:troop(), weapon:rifle, range:12, cover:'blocked', suppress:true }, sequence([0.6]));
+  assert.equal(denied.ok, false);
+  const allowed = rules.resolveAttack({ attacker:troop(), target:troop(), weapon:rifle, range:12, cover:'blocked', suppress:true, suppressionAimPossible:true }, sequence([0.6]));
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.suppressed, true);
+});
+
 test('range and armor die size are enforced', () => {
   assert.equal(rules.resolveAttack({ attacker:troop(), target:troop(), weapon:rifle, range:40 }).ok, false);
   assert.equal(rules.canDamage(rifle, troop({defenseDice:{count:1,sides:8}})), false);

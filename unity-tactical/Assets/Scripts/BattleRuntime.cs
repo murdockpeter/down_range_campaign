@@ -542,7 +542,8 @@ namespace DownRange.Tactical
 
         bool CanAimSuppression(BattleLosResult los)
         {
-            if (los == null || los.classification != "blocked") return true;
+            if (los == null) return false;
+            if (los.classification != "blocked") return true;
             return los.blockerDistance >= 0f && los.distance - los.blockerDistance <= 6.05f;
         }
 
@@ -684,7 +685,7 @@ namespace DownRange.Tactical
             GUILayout.Space(8); GUILayout.Label("2  MOVE", titleStyle);
             GUILayout.Label("Click an empty map position within the selected unit's allowance. A unit normally moves once per turn. Toggle Impaired movement before moving through mud, climbing, or crawling.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("3  ACT", titleStyle);
-            GUILayout.Label("Use the scrollable UNIT ACTIONS menu in the right panel. Every action remains visible with a short description and READY or UNAVAILABLE state. Point at a button for its cost, requirements, full effect, and the exact reason it cannot currently be used. Unity automatically checks eye-height LOS before Fire or Suppress; use the LOS tool (L) to inspect any sight line and range.", guideStyle);
+            GUILayout.Label("Use the scrollable UNIT ACTIONS menu in the right panel. Every action remains visible with a short description and READY or UNAVAILABLE state. Point at a button for its cost, requirements, full effect, and the exact reason it cannot currently be used. Unity checks eye-height LOS before Fire. Suppress can instead use a visible aim point within 6\" of a concealed target, as allowed by the full rules.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("4  REACT OR END", titleStyle);
             GUILayout.Label("Hold Reaction deliberately, or simply end the turn: every effective unit that has not acted automatically holds a reaction. Reaction fire is available during the opposing side's turn.", guideStyle);
             GUILayout.Space(10); GUILayout.Box("CURRENT SIDE: " + state.activeSide.ToUpperInvariant() + "    ·    ROUND " + state.round + "    ·    L: LOS tool    ·    Space: end turn    ·    F1: help", guideStyle);
