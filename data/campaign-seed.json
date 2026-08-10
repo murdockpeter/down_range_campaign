@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 6,
   "campaign": {
     "name": "Operation Iron Lantern",
     "slug": "operation-iron-lantern",
@@ -114,25 +114,11 @@
     { "id": "h0", "turn": 0, "mission": "Campaign activation", "outcome": "Task Force Lantern deployed", "summary": "FOB Mežvidi established southwest of the A13 corridor. Enemy retains Kārsava and the Malnava junction.", "momentumDelta": 0, "timestamp": "2031-09-13T18:00:00.000Z" }
   ],
   "library": [
-    { "title": "Rules v1.4.2", "file": "DownRangeLatest/Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf", "category": "Core", "detail": "Complete 33-page rules" },
-    { "title": "Quick Start", "file": "DownRangeLatest/Quick Start Compressed-abf9a8e1319398ca260792e82b88c528.pdf", "category": "Core", "detail": "Two-page table reference" },
-    { "title": "One Star", "file": "DownRangeLatest/Scenario - One Star Compressed-b723cccdd93a0084aa13c126f716e6c1.pdf", "category": "Scenario", "detail": "Facilitated starter scenario" },
-    { "title": "Advanced Armor", "file": "DownRangeLatest/Armored Addendum Compressed-617a27e4519c9747b41005d25c9c39b4.pdf", "category": "Rules", "detail": "Armor, mines, recovery and repair" },
-    { "title": "Pacific Sourcebook", "file": "Pacific Sourcebook Compressed-456938ff4624f57528aaa634151dcf04.pdf", "category": "Forces", "detail": "USMC and PLANMC units" },
-    { "title": "EUCOM Sourcebook", "file": "EUCOM Sourcebook Compressed-e0057ab6c50ad015323126db45c2c602.pdf", "category": "Forces", "detail": "U.S. Army and Russian units" },
-    { "title": "Lemuria Sourcebook", "file": "DownRangeLatest/Lemuria Sourcebook Compressed-9f3e8c9621abe090fedf97bd59fc9df9.pdf", "category": "Forces", "detail": "Fictional LPM force guide" },
-    { "title": "Unit Cards (latest)", "file": "DownRangeLatest/Cards Compressed-300ff760d1a58e32171f7a1fb573e57b.pdf", "category": "Reference", "detail": "Printable unit reference cards" },
-    { "title": "Rules (archive)", "file": "Rules Compressed-83e9e71d6ced13775649d572fe956aff.pdf", "category": "Archive", "detail": "Earlier local rules copy" },
-    { "title": "Quick Start (archive)", "file": "Quick Start Compressed-2f79c8ee86feff293de23dd54e4ac755.pdf", "category": "Archive", "detail": "Earlier local quick start" },
-    { "title": "One Star (archive)", "file": "Scenario - One Star Compressed-2d9754971c52d620967d6174842ef950.pdf", "category": "Archive", "detail": "Earlier local scenario copy" },
-    { "title": "Advanced Armor (archive)", "file": "Armored Addendum Compressed-152d7e49ce07a5ae27d1770a11d213f6.pdf", "category": "Archive", "detail": "Earlier local armor copy" },
-    { "title": "Unit Cards (2025)", "file": "Cards Compressed-7803c96954a69b8d993b2b4abbb21e60.pdf", "category": "Archive", "detail": "Archived reference cards" },
-    { "title": "Unit Cards (2026-01)", "file": "Cards Compressed-8105acb5abaeddb8c5555926cb357d96.pdf", "category": "Archive", "detail": "Archived reference cards" },
-    { "title": "Lemuria (archive)", "file": "Lemuria Sourcebook Compressed-a021e5070a3f95bd9189e1315dd4724a.pdf", "category": "Archive", "detail": "Earlier local sourcebook" },
-    { "title": "First Battle of the Next War", "file": "230109_Cancian_FirstBattle_NextWar.pdf", "category": "Research", "detail": "Campaign background reading" },
-    { "title": "Akron ROTC Tactics", "file": "Tactics/AkronROTC_TacticsClass.pdf", "category": "Tactics", "detail": "Tactical instruction" },
-    { "title": "Introduction to Tactics I", "file": "Tactics/IntroToTacticsI.pdf", "category": "Tactics", "detail": "Tactics reference, part I" },
-    { "title": "Introduction to Tactics II", "file": "Tactics/IntroToTacticsII.pdf", "category": "Tactics", "detail": "Tactics reference, part II" },
-    { "title": "Unity of Command II Manual", "file": "DownRangeLatest/Manual_-_Unity_of_Command_II_-_Revision_9.pdf", "category": "Other", "detail": "Included from supplied PDF collection" }
+    { "title": "Rules v1.4.2 · Authoritative", "file": "DownRangeLatest/Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf", "category": "Core", "detail": "Authoritative 33-page rules supplied July 2026" },
+    { "title": "Quick Start · Authoritative", "file": "DownRangeLatest/Quick Start Compressed-abf9a8e1319398ca260792e82b88c528.pdf", "category": "Core", "detail": "Authoritative two-page table reference supplied July 2026" },
+    { "title": "One Star · Authoritative", "file": "DownRangeLatest/Scenario - One Star Compressed-b723cccdd93a0084aa13c126f716e6c1.pdf", "category": "Scenario", "detail": "Authoritative facilitated starter scenario supplied July 2026" },
+    { "title": "Advanced Armor · Authoritative", "file": "DownRangeLatest/Armored Addendum Compressed-617a27e4519c9747b41005d25c9c39b4.pdf", "category": "Rules", "detail": "Authoritative armor, mines, recovery, and repair addendum" },
+    { "title": "Lemuria Sourcebook · Authoritative", "file": "DownRangeLatest/Lemuria Sourcebook Compressed-9f3e8c9621abe090fedf97bd59fc9df9.pdf", "category": "Forces", "detail": "Authoritative fictional LPM force guide supplied July 2026" },
+    { "title": "Unit Cards · Authoritative", "file": "DownRangeLatest/Cards Compressed-300ff760d1a58e32171f7a1fb573e57b.pdf", "category": "Reference", "detail": "Authoritative printable unit reference cards supplied July 2026" }
   ]
 }

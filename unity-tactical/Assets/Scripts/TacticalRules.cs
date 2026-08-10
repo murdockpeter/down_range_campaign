@@ -38,18 +38,16 @@ namespace DownRange.Tactical
             if (impaired) amount *= .5f;
             return amount;
         }
-        public static AttackResult Attack(UnitData attacker, UnitData target, WeaponData weapon, BoardInfo board, int round, string cover, bool suppress, DeterministicDice dice)
+        public static AttackResult Attack(UnitData attacker, UnitData target, WeaponData weapon, BoardInfo board, int round, string cover, bool suppress, DeterministicDice dice, bool suppressionAimPossible = false)
         {
             var result = new AttackResult { valid = false, reason = "Invalid attack." };
             if (attacker == null || target == null || weapon == null) { result.reason = "Select an attacker, target, and weapon."; return result; }
             result.range = Distance(attacker, target, board);
             if (result.range > weapon.range) { result.reason = string.Format("Target is {0:0.0}\" away; range is {1:0.0}\".", result.range, weapon.range); return result; }
-            if (cover == "blocked") { result.reason = "Total cover or concealment blocks line of sight."; return result; }
-            var advantage = 0;
-            if (!target.moved) advantage++;
-            if (target.observedBy == attacker.side && target.observedRound == round) advantage++;
-            if (cover == "partial" || attacker.status == "injured" || attacker.suppressed) advantage--;
-            advantage = Math.Sign(advantage);
+            if (cover == "blocked" && (!suppress || !suppressionAimPossible)) { result.reason = suppress ? "The attacker cannot aim within 6\" of the concealed target." : "Total cover or concealment blocks line of sight."; return result; }
+            var hasAdvantage = !target.moved || target.observedBy == attacker.side;
+            var hasDisadvantage = cover == "partial" || attacker.status == "injured" || attacker.suppressed;
+            var advantage = hasAdvantage == hasDisadvantage ? 0 : hasAdvantage ? 1 : -1;
             result.valid = true;
             result.skill = dice.Skill(attacker.skill, advantage);
             result.hit = result.skill.result >= weapon.difficulty;

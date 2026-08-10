@@ -26,7 +26,7 @@ namespace DownRange.Tactical
         public float x; public float y; public float move = 8f; public int skill = 6; public int medicalSkill; public int defense = 4;
         public float facing; public bool facingSet;
         public string status = "healthy"; public bool radio; public bool flying; public bool ew; public WeaponData[] weapons;
-        public bool actionUsed; public bool moved; public bool reaction; public bool focused; public bool sprint; public bool suppressed;
+        public bool actionUsed; public bool moved; public int movesMade; public bool reaction; public bool reactionMove; public bool focused; public bool sprint; public bool suppressed;
         public string suppressedBySide; public string observedBy; public int observedRound;
     }
     [Serializable] public class ObjectiveData { public string id; public string text; public int points; public bool complete; }

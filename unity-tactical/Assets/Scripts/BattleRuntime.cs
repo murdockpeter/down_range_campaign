@@ -130,6 +130,7 @@ namespace DownRange.Tactical
                 AddEvent(string.Format("Initiative: BLUE {0}, RED {1}. {2} acts first.", state.blueInitiative, state.redInitiative, state.activeSide.ToUpperInvariant()), "system");
                 Save();
             }
+            foreach (var unit in state.units ?? new UnitData[0]) if (unit.moved && unit.movesMade == 0) unit.movesMade = 1;
             dice = new DeterministicDice(request.settings.seed, state.rollCount);
             LoadMap();
             terrain = new ProceduralBattleTerrain(request.board);
@@ -393,15 +394,17 @@ namespace DownRange.Tactical
         bool TryMoveSelected(Rect board, Vector2 mouse)
         {
             var unit = Unit(state.selectedId);
-            if (unit == null || unit.side != state.activeSide || unit.moved || unit.focused || !Effective(unit)) { notice = "That unit cannot move now."; audio.Play(SoundCue.Error); return false; }
+            var reactionMove = unit != null && unit.reactionMove;
+            var movesAllowed = unit != null && unit.sprint ? 2 : 1;
+            if (unit == null || !Effective(unit) || unit.focused || (!reactionMove && (unit.side != state.activeSide || unit.movesMade >= movesAllowed))) { notice = "That unit cannot move now."; audio.Play(SoundCue.Error); return false; }
             float x, y;
             if (terrain != null && terrain.Ready) { if (!terrain.TryPercent(mouse, out x, out y)) { notice = "Choose a point on the tabletop."; return false; } }
             else { x = Mathf.Clamp((mouse.x - board.x) / board.width * 100f, 0f, 100f); y = Mathf.Clamp((mouse.y - board.y) / board.height * 100f, 0f, 100f); }
-            var distance = TacticalRules.Distance(unit.x, unit.y, x, y, request.board); var allowance = TacticalRules.MovementAllowance(unit, state.impairedMovement);
+            var distance = TacticalRules.Distance(unit.x, unit.y, x, y, request.board); var allowance = TacticalRules.MovementAllowance(unit, state.impairedMovement) / (unit.sprint ? 2f : 1f);
             if (distance > allowance + .05f) { notice = string.Format("Move is {0:0.0}\"; allowance is {1:0.0}\".", distance, allowance); audio.Play(SoundCue.Error); return false; }
             var oldX = unit.x; var oldY = unit.y;
             miniatures?.FaceMovement(unit, oldX, oldY, x, y);
-            unit.x = x; unit.y = y; unit.moved = true; AddEvent(string.Format("{0} moves {1:0.0}\"{2}.", unit.name, distance, state.impairedMovement ? " through impaired terrain" : ""), "move"); audio.Play(SoundCue.Move); Save(); return true;
+            unit.x = x; unit.y = y; unit.moved = true; unit.movesMade++; unit.reactionMove = false; AddEvent(string.Format("{0} moves {1:0.0}\"{2}.", unit.name, distance, state.impairedMovement ? " through impaired terrain" : ""), "move"); audio.Play(SoundCue.Move); Save(); return true;
         }
 
         void DrawInspector(Rect rect)
@@ -441,26 +444,35 @@ namespace DownRange.Tactical
             var weapon = unit.weapons?.FirstOrDefault();
             var opposingTarget = target != null && target.side != unit.side;
             var targetDistance = target == null ? 0f : TacticalRules.Distance(unit, target, request.board);
+            var selectedLos = target == null ? new BattleLosResult { classification = "open" } : SelectedLos(unit, target);
+            var movesAllowed = unit.sprint ? 2 : 1;
             var moveReason = !Effective(unit) ? "This unit cannot move while " + unit.status + "." :
-                unit.side != state.activeSide ? "Movement is only available during the " + unit.side.ToUpperInvariant() + " turn." :
-                unit.moved || unit.focused ? "This unit has already moved or given up movement." : string.Empty;
+                unit.focused ? "This unit is Focusing and must remain stationary." :
+                !unit.reactionMove && unit.side != state.activeSide ? "Movement is only available during the " + unit.side.ToUpperInvariant() + " turn." :
+                !unit.reactionMove && unit.movesMade >= movesAllowed ? "This unit has used all of its movement for the turn." : string.Empty;
 
             var move = Describe("MOVE", "Reposition on the tabletop.", "Movement", "Active-side unit with unused movement.",
-                "Click open terrain up to " + TacticalRules.MovementAllowance(unit, state.impairedMovement).ToString("0.#") + "\" away. Facing follows movement.", string.IsNullOrEmpty(moveReason), moveReason);
+                "Click open terrain up to " + (TacticalRules.MovementAllowance(unit, state.impairedMovement) / (unit.sprint ? 2f : 1f)).ToString("0.#") + "\" away. Facing follows movement.", string.IsNullOrEmpty(moveReason), moveReason);
             if (ActionMenuButton(move)) { notice = "MOVE ready: click an open point on the tabletop within the unit's allowance."; audio.Play(SoundCue.Click); }
 
             var attackReason = generalReason;
             if (string.IsNullOrEmpty(attackReason) && weapon == null) attackReason = "This unit has no ranged weapon.";
             else if (string.IsNullOrEmpty(attackReason) && target == null) attackReason = "Select an opposing miniature as the target.";
             else if (string.IsNullOrEmpty(attackReason) && !opposingTarget) attackReason = "Fire requires an opposing target.";
-            else if (string.IsNullOrEmpty(attackReason) && state.cover == "blocked") attackReason = "Terrain or a miniature blocks line of sight.";
+            else if (string.IsNullOrEmpty(attackReason) && selectedLos.classification == "blocked") attackReason = "Terrain or a miniature blocks line of sight.";
             else if (string.IsNullOrEmpty(attackReason) && targetDistance > weapon.range) attackReason = string.Format("Target is {0:0.0}\" away; {1} range is {2:0.#}\".", targetDistance, weapon.name, weapon.range);
             var weaponName = weapon == null ? "unarmed" : weapon.name;
             var weaponRange = weapon == null ? "No weapon equipped." : string.Format("Opposing target within {0:0.#}\" and an open or partial LOS.", weapon.range);
             if (ActionMenuButton(Describe("FIRE · " + weaponName, "Attack to cause a casualty.", "1 action", weaponRange,
                 "Roll the weapon attack against the target's defense and current cover.", string.IsNullOrEmpty(attackReason), attackReason))) Fire(false);
-            if (ActionMenuButton(Describe("SUPPRESS", "Pin an enemy instead of wounding it.", "1 action", weaponRange,
-                "A successful attack applies suppression rather than a casualty.", string.IsNullOrEmpty(attackReason), attackReason))) Fire(true);
+            var suppressReason = generalReason;
+            if (string.IsNullOrEmpty(suppressReason) && weapon == null) suppressReason = "This unit has no ranged weapon.";
+            else if (string.IsNullOrEmpty(suppressReason) && target == null) suppressReason = "Select an opposing miniature as the target.";
+            else if (string.IsNullOrEmpty(suppressReason) && !opposingTarget) suppressReason = "Suppression requires an opposing target.";
+            else if (string.IsNullOrEmpty(suppressReason) && targetDistance > weapon.range) suppressReason = string.Format("Target is {0:0.0}\" away; {1} range is {2:0.#}\".", targetDistance, weapon.name, weapon.range);
+            else if (string.IsNullOrEmpty(suppressReason) && !CanAimSuppression(selectedLos)) suppressReason = "The first visible aim point is more than 6\" from the concealed target.";
+            if (ActionMenuButton(Describe("SUPPRESS", "Pin an enemy instead of wounding it.", "1 action", "Target in the weapon's cone or radius; direct LOS is not required if the attacker can aim within 6\".",
+                "Roll Skill only; success gives the target Disadvantage until this side's next turn.", string.IsNullOrEmpty(suppressReason), suppressReason))) Fire(true);
 
             var reactionReason = canAct && !unit.reaction ? string.Empty : unit.reaction ? "This unit is already holding a reaction." : generalReason;
             if (ActionMenuButton(Describe("HOLD REACTION", "Reserve an attack for the enemy turn.", "1 action", "Effective unit with an unused action.",
@@ -468,25 +480,27 @@ namespace DownRange.Tactical
             { unit.actionUsed = true; unit.reaction = true; AddEvent(unit.name + " holds a reaction.", "action"); audio.Play(SoundCue.Click); Save(); }
 
             var sprintReason = !canAct ? generalReason : unit.kind != "troop" ? "Only troop units may sprint." : unit.sprint ? "This unit is already sprinting." : string.Empty;
-            if (ActionMenuButton(Describe("SPRINT", "Double this troop's movement allowance.", "1 action", "Troop unit with an unused action.",
-                "Doubles movement this turn; the unit gives up its action.", string.IsNullOrEmpty(sprintReason), sprintReason)))
-            { unit.actionUsed = true; unit.sprint = true; AddEvent(unit.name + " sacrifices its action to sprint.", "move"); audio.Play(SoundCue.Move); Save(); }
-
-            if (ActionMenuButton(Describe("FOCUS", "Trade movement for deliberate preparation.", "1 action + movement", "Effective unit with an unused action.",
-                "Consumes the action and all remaining movement for this turn.", canAct, generalReason)))
-            { ConsumeAction(unit); unit.focused = true; unit.moved = true; AddEvent(unit.name + " focuses and gives up movement.", "action"); audio.Play(SoundCue.Click); Save(); }
+            if (ActionMenuButton(Describe("SPRINT", unit.reaction ? "Move once during the opposing turn." : "Take a second Move this turn.", "1 action", "Troop unit with an unused action or saved Reaction.",
+                unit.reaction ? "Converts the saved Reaction into one Move at normal speed." : "Allows two separate Moves this turn; each uses the normal Move rating.", string.IsNullOrEmpty(sprintReason), sprintReason)))
+            {
+                if (unit.reaction) { unit.reaction = false; unit.reactionMove = true; unit.actionUsed = true; AddEvent(unit.name + " uses its reaction to sprint; choose a destination.", "move"); }
+                else { unit.actionUsed = true; unit.sprint = true; AddEvent(unit.name + " sacrifices its action for a second Move.", "move"); }
+                audio.Play(SoundCue.Move); Save();
+            }
 
             var radioReason = !canAct ? generalReason : !unit.radio ? "This unit is not equipped with a radio." :
-                target == null ? "Select an opposing miniature as the target." : !opposingTarget ? "Observation requires an opposing target." : string.Empty;
-            if (ActionMenuButton(Describe("RADIO FIRES OBSERVATION", "Mark an enemy for friendly fires.", "1 action", "Radio-equipped unit and selected opposing target.",
-                "Marks the target as observed by this side for the current round.", string.IsNullOrEmpty(radioReason), radioReason)))
+                target == null ? "Select an opposing miniature as the target." : !opposingTarget ? "Observation requires an opposing target." :
+                selectedLos.classification == "blocked" ? "The observer must have line of sight to the target." : string.Empty;
+            if (ActionMenuButton(Describe("RADIO FIRES OBSERVATION", "Mark a visible enemy for friendly fires.", "1 action", "Radio-equipped unit with LOS to a selected opposing target.",
+                "Gives friendly attacks against the target Advantage until this observer's next turn.", string.IsNullOrEmpty(radioReason), radioReason)))
             { ConsumeAction(unit); target.observedBy = unit.side; target.observedRound = state.round; AddEvent(unit.name + " observes " + target.name + " for friendly fires.", "signal"); audio.Play(SoundCue.Objective); Save(); }
 
-            var treatReason = !canAct ? generalReason : target == null ? "Select a downed friendly casualty." :
+            var treatReason = !canAct ? generalReason : unit.medicalSkill <= 0 ? "This unit lacks the required medical training and equipment." :
+                unit.moved ? "Focused medical care requires the unit to remain stationary for the entire turn." : target == null ? "Select a downed friendly casualty." :
                 target.side != unit.side || target.status != "downed" ? "The target must be a downed friendly." :
                 targetDistance > 1.5f ? string.Format("Move adjacent first; the casualty is {0:0.0}\" away.", targetDistance) : string.Empty;
-            if (ActionMenuButton(Describe("TREAT CASUALTY", "Attempt to stabilize a downed friendly.", "1 action + movement", "Downed friendly within 1.5\".",
-                "Roll Medicine; the result determines the casualty's new status.", string.IsNullOrEmpty(treatReason), treatReason))) Treat(unit, target);
+            if (ActionMenuButton(Describe("TREAT CASUALTY · FOCUS", "Attempt to revive a downed friendly.", "Entire turn (Focus)", "Medically equipped unit; bases touching (within 1.5\"); no prior movement or action.",
+                "Roll medical Skill on the full Rules Table 2-2; the result determines the casualty's new status.", string.IsNullOrEmpty(treatReason), treatReason))) Treat(unit, target);
 
             var relayDistance = TacticalRules.Distance(unit.x, unit.y, 73f, 22f, request.board);
             var relayReason = !canAct ? generalReason : unit.side != "blue" ? "Only BLUE units can complete this mission objective." :
@@ -526,6 +540,12 @@ namespace DownRange.Tactical
             return string.Empty;
         }
 
+        bool CanAimSuppression(BattleLosResult los)
+        {
+            if (los == null || los.classification != "blocked") return true;
+            return los.blockerDistance >= 0f && los.distance - los.blockerDistance <= 6.05f;
+        }
+
         bool ActionButton(string label, string tooltip, float height = 23f)
         {
             return GUILayout.Button(new GUIContent(label, tooltip), GUILayout.Height(height));
@@ -542,9 +562,10 @@ namespace DownRange.Tactical
             }
             string move;
             if (!Effective(unit)) move = "<color=#e18a75>× Cannot move while " + unit.status + ".</color>";
-            else if (unit.side != state.activeSide) move = "<color=#9aa39c>○ Wait for the " + unit.side.ToUpperInvariant() + " turn.</color>";
-            else if (unit.moved || unit.focused) move = "<color=#9aa39c>✓ Movement used.</color>";
-            else move = "<color=#91d6be>1. MOVE: click the map, up to " + TacticalRules.MovementAllowance(unit, state.impairedMovement).ToString("0.#") + "\".</color>";
+            else if (unit.focused) move = "<color=#9aa39c>✓ Focus requires remaining stationary.</color>";
+            else if (!unit.reactionMove && unit.side != state.activeSide) move = "<color=#9aa39c>○ Wait for the " + unit.side.ToUpperInvariant() + " turn.</color>";
+            else if (!unit.reactionMove && unit.movesMade >= (unit.sprint ? 2 : 1)) move = "<color=#9aa39c>✓ Movement used.</color>";
+            else move = "<color=#91d6be>1. MOVE: click the map, up to " + (TacticalRules.MovementAllowance(unit, state.impairedMovement) / (unit.sprint ? 2f : 1f)).ToString("0.#") + "\".</color>";
             string action;
             if (!Effective(unit)) action = "<color=#e18a75>× Cannot take actions.</color>";
             else if (unit.side != state.activeSide && !unit.reaction) action = "<color=#9aa39c>○ No action during this side's turn.</color>";
@@ -559,8 +580,9 @@ namespace DownRange.Tactical
         void Fire(bool suppress)
         {
             var attacker = Unit(state.selectedId); var target = Unit(state.targetId); var weapon = attacker?.weapons?.FirstOrDefault();
-            if (terrain != null && terrain.Ready && attacker != null && target != null) state.cover = SelectedLos(attacker, target).classification;
-            var result = TacticalRules.Attack(attacker, target, weapon, request.board, state.round, state.cover, suppress, dice);
+            BattleLosResult los = null;
+            if (terrain != null && terrain.Ready && attacker != null && target != null) { los = SelectedLos(attacker, target); state.cover = los.classification; }
+            var result = TacticalRules.Attack(attacker, target, weapon, request.board, state.round, state.cover, suppress, dice, CanAimSuppression(los));
             if (!result.valid) { notice = result.reason; audio.Play(SoundCue.Error); return; }
             audio.Play(suppress ? SoundCue.Suppress : SoundCue.Fire);
             ConsumeAction(attacker); state.alarm = true;
@@ -573,8 +595,10 @@ namespace DownRange.Tactical
 
         void Treat(UnitData medic, UnitData target)
         {
+            if (medic == null || medic.medicalSkill <= 0) { notice = "This unit lacks the required medical training and equipment."; audio.Play(SoundCue.Error); return; }
+            if (medic.moved) { notice = "Medical treatment requires Focus; the treating unit must not move this turn."; audio.Play(SoundCue.Error); return; }
             var range = TacticalRules.Distance(medic, target, request.board); if (range > 1.5f) { notice = string.Format("Move adjacent first ({0:0.0}\" away).", range); audio.Play(SoundCue.Error); return; }
-            ConsumeAction(medic); medic.focused = true; medic.moved = true; DieRoll roll; target.status = TacticalRules.Medicine(medic, dice, out roll);
+            ConsumeAction(medic); medic.focused = true; medic.moved = true; medic.movesMade = 1; DieRoll roll; target.status = TacticalRules.Medicine(medic, dice, out roll);
             AddEvent(string.Format("{0} treats {1}: {2} — {3}.", medic.name, target.name, RollText(roll), target.status), "medical"); audio.Play(SoundCue.Medical); Save();
         }
         void ObserveRelay(UnitData unit)
@@ -594,9 +618,9 @@ namespace DownRange.Tactical
         void StartSide(string side)
         {
             state.activeSide = side;
-            foreach (var unit in state.units.Where(item => item.side == side)) { unit.actionUsed = false; unit.moved = false; unit.focused = false; unit.sprint = false; unit.reaction = false; }
+            foreach (var unit in state.units.Where(item => item.side == side)) { unit.actionUsed = false; unit.moved = false; unit.movesMade = 0; unit.focused = false; unit.sprint = false; unit.reaction = false; unit.reactionMove = false; }
             foreach (var unit in state.units.Where(item => item.suppressedBySide == side)) { unit.suppressed = false; unit.suppressedBySide = ""; }
-            foreach (var unit in state.units.Where(item => item.observedBy == side && item.observedRound < state.round)) { unit.observedBy = ""; unit.observedRound = 0; }
+            foreach (var unit in state.units.Where(item => item.observedBy == side)) { unit.observedBy = ""; unit.observedRound = 0; }
             AddEvent(side.ToUpperInvariant() + " turn begins.", "system");
         }
 

@@ -15,6 +15,7 @@ namespace DownRange.Tactical
         public string classification = "open";
         public string blocker = "";
         public float distance;
+        public float blockerDistance = -1f;
         public Vector3 start;
         public Vector3 end;
     }
@@ -33,7 +34,7 @@ namespace DownRange.Tactical
                 if (marker != null)
                 {
                     if (marker.unitId == originUnitId || marker.unitId == targetUnitId) continue;
-                    return Blocked(result, "intervening unit " + marker.gameObject.name.Replace(" - 3D campaign miniature", ""));
+                    return Blocked(result, "intervening unit " + marker.gameObject.name.Replace(" - 3D campaign miniature", ""), hit.distance);
                 }
                 var obstacle = hit.collider.GetComponentInParent<BattleLosObstacle>();
                 if (obstacle == null) continue;
@@ -42,14 +43,14 @@ namespace DownRange.Tactical
                     if (result.classification == "open") { result.classification = "partial"; result.blocker = obstacle.label; }
                     continue;
                 }
-                return Blocked(result, obstacle.label);
+                return Blocked(result, obstacle.label, hit.distance);
             }
             return result;
         }
 
-        static BattleLosResult Blocked(BattleLosResult result, string blocker)
+        static BattleLosResult Blocked(BattleLosResult result, string blocker, float blockerDistance)
         {
-            result.classification = "blocked"; result.blocker = blocker ?? "terrain"; return result;
+            result.classification = "blocked"; result.blocker = blocker ?? "terrain"; result.blockerDistance = blockerDistance; return result;
         }
     }
 }

@@ -32,10 +32,9 @@
     if (range > weapon.range) return { ok: false, reason: `Target is ${range.toFixed(1)}\" away; ${weapon.name} range is ${weapon.range}\".` };
     if (cover === 'blocked') return { ok: false, reason: 'Total cover or concealment blocks line of sight.' };
     if (!canDamage(weapon, target)) return { ok: false, reason: `${weapon.name} cannot penetrate this target's defense die.` };
-    let net = Math.sign(advantage);
-    if (cover === 'partial' || attacker.status === 'injured' || attacker.suppressed) net -= 1;
-    if (target.moved === false || target.ambushed) net += 1;
-    net = Math.sign(net);
+    const hasAdvantage = advantage > 0 || target.moved === false || target.ambushed;
+    const hasDisadvantage = advantage < 0 || cover === 'partial' || attacker.status === 'injured' || attacker.suppressed;
+    const net = hasAdvantage === hasDisadvantage ? 0 : hasAdvantage ? 1 : -1;
     const skill = rollSkill(attacker.skill, net, Number(weapon.skillModifier || 0), rng);
     const hit = skill.result >= weapon.difficulty;
     const base = { ok: true, hit, suppress, range, skill, difficulty: weapon.difficulty, advantage: net };

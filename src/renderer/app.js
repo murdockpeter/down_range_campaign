@@ -14,6 +14,14 @@ const $ = (selector) => document.querySelector(selector);
 const esc = (value = '') => String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const momentumNames = { '-3': 'Crisis', '-2': 'Enemy initiative', '-1': 'Under pressure', 0: 'Contested', 1: 'Advantage', 2: 'Initiative', 3: 'Dominant' };
+const authoritativeRulesLibrary = [
+  {title:'Rules v1.4.2 · Authoritative',file:'DownRangeLatest/Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf',category:'Core',detail:'Authoritative 33-page rules supplied July 2026'},
+  {title:'Quick Start · Authoritative',file:'DownRangeLatest/Quick Start Compressed-abf9a8e1319398ca260792e82b88c528.pdf',category:'Core',detail:'Authoritative two-page table reference supplied July 2026'},
+  {title:'One Star · Authoritative',file:'DownRangeLatest/Scenario - One Star Compressed-b723cccdd93a0084aa13c126f716e6c1.pdf',category:'Scenario',detail:'Authoritative facilitated starter scenario supplied July 2026'},
+  {title:'Advanced Armor · Authoritative',file:'DownRangeLatest/Armored Addendum Compressed-617a27e4519c9747b41005d25c9c39b4.pdf',category:'Rules',detail:'Authoritative armor, mines, recovery, and repair addendum'},
+  {title:'Lemuria Sourcebook · Authoritative',file:'DownRangeLatest/Lemuria Sourcebook Compressed-9f3e8c9621abe090fedf97bd59fc9df9.pdf',category:'Forces',detail:'Authoritative fictional LPM force guide supplied July 2026'},
+  {title:'Unit Cards · Authoritative',file:'DownRangeLatest/Cards Compressed-300ff760d1a58e32171f7a1fb573e57b.pdf',category:'Reference',detail:'Authoritative printable unit reference cards supplied July 2026'}
+];
 const viewNames = {
   overview: 'Operational picture', mission: 'Mission package', tactical: 'Tactical battle', mcpp: 'MCPP planning wizard', forces: 'Force status',
   logistics: 'Logistics & medical', intel: 'Intelligence estimate', aar: 'After action report',
@@ -130,6 +138,11 @@ function normalizeTacticalData() {
   for (const [key,value] of Object.entries(defaults)) if (state.tactical[key] === undefined) state.tactical[key]=structuredClone(value);
   state.tactical.units.forEach(unit=>{unit.actionUsed??=false;unit.moved??=false;unit.reaction??=false;unit.focused??=false;unit.sprint??=false;unit.suppressed??=false;unit.weapons||=[];});
   if(Number(state.schemaVersion||1)<5){state.schemaVersion=5;setTimeout(scheduleSave,0);}
+}
+
+function normalizeLibraryData() {
+  if(JSON.stringify(state.library)!==JSON.stringify(authoritativeRulesLibrary)) state.library=structuredClone(authoritativeRulesLibrary);
+  if(Number(state.schemaVersion||1)<6){state.schemaVersion=6;setTimeout(scheduleSave,0);}
 }
 
 function renderMap() {
@@ -405,7 +418,7 @@ function historyView() {
 
 function libraryView() {
   const categories = [...new Set(state.library.map(d=>d.category))];
-  return `<div class="toolbar"><div><input id="librarySearch" class="search" placeholder="Search ${state.library.length} supplied PDFs…"> <select id="libraryFilter" class="search" style="width:170px"><option value="">All categories</option>${categories.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><button class="button" id="openLibrary">Open folder</button></div><div id="libraryGrid" class="library-grid">${libraryCards(state.library)}</div><div style="margin-top:18px;color:var(--muted);font:10px/1.6 var(--mono)">Down Range © Nicholas Royer · CC BY-NC-SA 4.0. Campaign layer is an unofficial, non-commercial companion. The complete supplied PDF collection is preserved offline, including archives and research material.</div>`;
+  return `<div class="toolbar"><div><input id="librarySearch" class="search" placeholder="Search ${state.library.length} authoritative PDFs…"> <select id="libraryFilter" class="search" style="width:170px"><option value="">All categories</option>${categories.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><button class="button" id="openLibrary">Open folder</button></div><div id="libraryGrid" class="library-grid">${libraryCards(state.library)}</div><div style="margin-top:18px;color:var(--muted);font:10px/1.6 var(--mono)">Down Range © Nicholas Royer · CC BY-NC-SA 4.0. Campaign layer is an unofficial, non-commercial companion. Only the six PDFs supplied in DownRangeLatest are treated as authoritative game references.</div>`;
 }
 function libraryCards(items) { return items.map(d=>`<article class="doc"><span class="doc-type">${esc(d.category)}</span><h3>${esc(d.title)}</h3><p>${esc(d.detail)}</p><button class="button open-doc" data-file="${esc(d.file)}">Open PDF</button></article>`).join(''); }
 
@@ -556,11 +569,11 @@ function switchView(view) {
 
 document.querySelectorAll('.nav-item').forEach(el=>el.addEventListener('click',()=>switchView(el.dataset.view)));
 $('#exportBtn').onclick=async()=>{const result=await window.campaignAPI.exportCampaign(state);if(!result.canceled)toast('Campaign exported');};
-$('#importBtn').onclick=async()=>{try{const result=await window.campaignAPI.importCampaign();if(!result.canceled){state=result.state;normalizeMapData();normalizePlanningData();normalizeTacticalData();render();toast('Campaign imported');}}catch(error){toast(`Import failed: ${error.message}`);}};
+$('#importBtn').onclick=async()=>{try{const result=await window.campaignAPI.importCampaign();if(!result.canceled){state=result.state;normalizeMapData();normalizePlanningData();normalizeTacticalData();normalizeLibraryData();render();toast('Campaign imported');}}catch(error){toast(`Import failed: ${error.message}`);}};
 $('#mapsKeyBtn').onclick=showMapsSettings;
 
 window.campaignAPI.load().then(async(loaded)=>{
-  state=loaded;normalizeMapData();normalizePlanningData();normalizeTacticalData();render();
+  state=loaded;normalizeMapData();normalizePlanningData();normalizeTacticalData();normalizeLibraryData();render();
   try{unityStatusData=await window.campaignAPI.getUnityStatus();render();}catch{}
   const key=await window.campaignAPI.getMapsKey();
   if(key){try{await loadGoogleMaps(key);mapMode='google';render();}catch(error){toast(error.message);}}

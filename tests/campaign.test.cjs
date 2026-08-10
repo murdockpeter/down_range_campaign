@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
 const seed = JSON.parse(fs.readFileSync(path.join(root, 'data', 'campaign-seed.json'), 'utf8'));
 
 test('seed contains a playable operational picture', () => {
-  assert.equal(seed.schemaVersion, 4);
+  assert.equal(seed.schemaVersion, 6);
   assert.ok(seed.locations.length >= 8);
   assert.ok(seed.forces.length >= 6);
   assert.ok(seed.mission.objectives.length >= 3);
@@ -22,7 +22,9 @@ test('seed contains a playable operational picture', () => {
 });
 
 test('every supplied library PDF is packaged', () => {
-  assert.equal(seed.library.length, 20);
+  assert.equal(seed.library.length, 6);
+  assert.ok(seed.library.every((document) => document.file.startsWith('DownRangeLatest/')));
+  assert.ok(seed.library.every((document) => /Authoritative/.test(document.title)));
   for (const document of seed.library) {
     assert.ok(fs.existsSync(path.join(root, 'docs', 'official', document.file)), document.file);
   }
