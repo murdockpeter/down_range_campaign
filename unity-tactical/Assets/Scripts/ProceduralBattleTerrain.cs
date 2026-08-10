@@ -379,12 +379,18 @@ namespace DownRange.Tactical
 
         public void UpdateInput()
         {
+            var speed = 18f * Time.unscaledDeltaTime * Mathf.Lerp(.15f, 1.6f, Mathf.InverseLerp(12f, 105f, distance));
+            var horizontal = (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
+            var vertical = (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
+            focus += new Vector3(horizontal, 0f, vertical) * speed;
             if (Input.GetMouseButton(2))
             {
                 yaw += Input.GetAxis("Mouse X") * 3.2f;
                 pitch += Input.GetAxis("Mouse Y") * 2.8f;
             }
             distance = Mathf.Clamp(distance - Input.mouseScrollDelta.y * 2.2f, 12f, 105f);
+            focus.x = Mathf.Clamp(focus.x, -board.widthInches * .5f, board.widthInches * .5f);
+            focus.z = Mathf.Clamp(focus.z, -board.heightInches * .5f, board.heightInches * .5f);
             camera.orthographicSize = Mathf.Clamp(distance * .43f, 5.2f, 47f);
             UpdateCameraTransform();
         }

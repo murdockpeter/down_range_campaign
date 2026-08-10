@@ -247,7 +247,7 @@ namespace DownRange.Tactical
                 var tokenHit = state.units.Any(unit => TokenRect(board, unit).Contains(current.mousePosition));
                 if (!tokenHit && TryMoveSelected(board, current.mousePosition)) current.Use();
             }
-            var boardHint = losTool ? "LOS TOOL · left-click two points · right-click resets · L closes" : "IMPORTED 3D MINIATURES · middle-drag rotates/skews · wheel zooms · select a miniature, then click its destination";
+            var boardHint = losTool ? "LOS TOOL · left-click two points · right-click resets · L closes" : "IMPORTED 3D MINIATURES · WASD / arrows pan · middle-drag rotates/skews · wheel zooms · select a miniature, then click its destination";
             GUI.Label(new Rect(stage.x + 12, stage.yMax - 20, stage.width - 24, 18), boardHint, smallStyle);
         }
 
@@ -688,6 +688,8 @@ namespace DownRange.Tactical
             GUILayout.Label("Use the scrollable UNIT ACTIONS menu in the right panel. Every action remains visible with a short description and READY or UNAVAILABLE state. Point at a button for its cost, requirements, full effect, and the exact reason it cannot currently be used. Unity checks eye-height LOS before Fire. Suppress can instead use a visible aim point within 6\" of a concealed target, as allowed by the full rules.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("4  REACT OR END", titleStyle);
             GUILayout.Label("Hold Reaction deliberately, or simply end the turn: every effective unit that has not acted automatically holds a reaction. Reaction fire is available during the opposing side's turn.", guideStyle);
+            GUILayout.Space(8); GUILayout.Label("CAMERA", titleStyle);
+            GUILayout.Label("WASD or the arrow keys pan by fixed map direction: W north, S south, A west, and D east, regardless of camera rotation. Hold the middle mouse button and drag to rotate or tilt/skew; use the mouse wheel to zoom.", guideStyle);
             GUILayout.Space(10); GUILayout.Box("CURRENT SIDE: " + state.activeSide.ToUpperInvariant() + "    ·    ROUND " + state.round + "    ·    L: LOS tool    ·    Space: end turn    ·    F1: help", guideStyle);
             GUILayout.Space(8); GUILayout.Label("Tip: action details appear both beneath the menu and beside the mouse pointer. Unavailable buttons can also be clicked to place their blocking reason in STATUS.", smallStyle);
             GUILayout.FlexibleSpace();

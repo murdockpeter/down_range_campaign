@@ -408,8 +408,7 @@ namespace DownRange.Tactical
             var speed = 18f * Time.unscaledDeltaTime * Mathf.Lerp(.15f, 1.6f, Mathf.InverseLerp(CameraMinimumDistance, CameraMaximumDistance, cameraDistance));
             var horizontal = (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
             var vertical = (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
-            var rotation = Quaternion.Euler(0f, cameraYaw, 0f); var right = rotation * Vector3.right; var forward = rotation * Vector3.forward;
-            cameraFocus += (right * horizontal + forward * vertical) * speed;
+            cameraFocus += new Vector3(horizontal, 0f, vertical) * speed;
             if (Input.GetKey(KeyCode.Q)) cameraYaw -= 52f * Time.unscaledDeltaTime;
             if (Input.GetKey(KeyCode.E)) cameraYaw += 52f * Time.unscaledDeltaTime;
             if (Input.GetMouseButton(2))
@@ -574,7 +573,7 @@ namespace DownRange.Tactical
             GUILayout.Space(8); GUILayout.Label("NARRATIVE INFORMATION", headingStyle);
             var nextFacilitator = GUILayout.Toggle(facilitatorView, " Facilitator view — reveal due hidden forces"); if (nextFacilitator != facilitatorView) { facilitatorView = nextFacilitator; RefreshForceVisibility(); audio.Play(SoundCue.Click); }
             GUILayout.Label(facilitatorView ? "Hidden contacts due this round are visible for adjudication." : "Hidden scenario contacts remain off the tabletop until revealed.", smallStyle);
-            GUILayout.Space(10); GUILayout.Label("CAMERA", headingStyle); GUILayout.Label("WASD / arrows · pan\nQ / E · rotate\nMiddle-drag sideways · rotate\nMiddle-drag vertically · unrestricted tilt / skew\nMouse wheel · tabletop-to-miniature zoom", bodyStyle);
+            GUILayout.Space(10); GUILayout.Label("CAMERA", headingStyle); GUILayout.Label("WASD / arrows · fixed compass pan\nQ / E · rotate\nMiddle-drag sideways · rotate\nMiddle-drag vertically · unrestricted tilt / skew\nMouse wheel · tabletop-to-miniature zoom", bodyStyle);
             GUILayout.Label(string.Format("Focus {0:0.0}, {1:0.0} · Zoom {2:0} · Tilt {3:0}°", cameraFocus.x, cameraFocus.z, cameraDistance, cameraPitch), smallStyle);
             if (GUILayout.Button("CENTER ON CALLONI")) { cameraFocus = new Vector3(36f, 0f, 30f); cameraYaw = 0f; cameraPitch = 62f; cameraDistance = 72f; }
             GUILayout.Space(10); GUILayout.Label("STATUS", headingStyle); GUILayout.Label(notice, bodyStyle); GUILayout.FlexibleSpace();
@@ -592,7 +591,7 @@ namespace DownRange.Tactical
             GUILayout.Space(9); GUILayout.Label("SELECT AND MOVE", headingStyle); GUILayout.Label("Left-click a miniature to select it. Right-click the tabletop within its movement rating to reposition it. Buildings currently block outdoor movement; enterable floors and stairs are the next building-system pass.", bodyStyle);
             GUILayout.Space(9); GUILayout.Label("3D LINE OF SIGHT", headingStyle); GUILayout.Label("Press L or use the LOS button, then click an origin and target. Unity raycasts against building floors, rubble, tree trunks, vehicles, and intervening units. A green line is clear; a red line names the first blocker.", bodyStyle);
             GUILayout.Space(9); GUILayout.Label("SCENARIO DIRECTOR", headingStyle); GUILayout.Label("Choose narrative or force-on-force objectives on the left. Advancing rounds presents the official twelve-round narrative structure and introduces scheduled forces. Facilitator view reveals contacts that would normally remain hidden.", bodyStyle);
-            GUILayout.Space(9); GUILayout.Label("CAMERA", headingStyle); GUILayout.Label("WASD or arrow keys pan. Q/E rotates horizontally. Hold the middle mouse button and drag sideways to rotate or vertically for unrestricted tilt/skew, including through the horizon and up toward the sky. The wheel zooms from a full-table view down to a close miniature view; close-up panning automatically slows for precise framing. F1 toggles this guide.", bodyStyle);
+            GUILayout.Space(9); GUILayout.Label("CAMERA", headingStyle); GUILayout.Label("WASD or arrow keys pan by fixed map direction: W north, S south, A west, and D east, regardless of camera rotation. Q/E rotates horizontally. Hold the middle mouse button and drag sideways to rotate or vertically for unrestricted tilt/skew, including through the horizon and up toward the sky. The wheel zooms from a full-table view down to a close miniature view; close-up panning automatically slows for precise framing. F1 toggles this guide.", bodyStyle);
             GUILayout.FlexibleSpace(); GUILayout.Label("One Star and imported Down Range models © Nicholas Royer · Adapted under CC BY-NC-SA 4.0 for private, noncommercial use.", smallStyle); GUILayout.EndArea();
         }
     }
