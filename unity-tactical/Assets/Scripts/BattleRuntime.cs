@@ -126,7 +126,7 @@ namespace DownRange.Tactical
             }
             if (state == null)
             {
-                state = new BattleState { requestId = request.requestId, units = request.units, objectives = request.objectives, events = new BattleEvent[0] };
+                state = new BattleState { requestId = request.requestId, units = request.units, objectives = request.objectives, events = new BattleEvent[0], effects = new BattlefieldEffectData[0], teachingMode = request.settings == null || request.settings.teachingMode, manualDice = request.settings != null && request.settings.manualDice };
                 state.selectedId = state.units.FirstOrDefault(unit => unit.side == "blue")?.id;
                 state.targetId = state.units.FirstOrDefault(unit => unit.side == "red")?.id;
                 dice = new DeterministicDice(request.settings.seed);
@@ -136,6 +136,7 @@ namespace DownRange.Tactical
             }
             NormalizeObjectiveDefinitions();
             if (state.calculations == null) state.calculations = new RuleCalculation[0];
+            if (state.effects == null) state.effects = new BattlefieldEffectData[0];
             if (state.nextCalculationSequence <= 0) state.nextCalculationSequence = state.calculations.Length == 0 ? 1 : state.calculations.Max(item => item.sequence) + 1;
             foreach (var item in state.calculations.Where(item => item.rulePage <= 0 && string.IsNullOrEmpty(item.ruleSection))) RuleCitation(item.category, item.command, out item.ruleSection, out item.rulePage);
             foreach (var unit in state.units ?? new UnitData[0]) if (unit.moved && unit.movesMade == 0) unit.movesMade = 1;
@@ -182,7 +183,8 @@ namespace DownRange.Tactical
         void RollInitiative()
         {
             var rolls = new List<string>();
-            do { state.blueInitiative = dice.Roll(6); state.redInitiative = dice.Roll(6); rolls.Add(string.Format("BLUE d6={0}, RED d6={1}{2}", state.blueInitiative, state.redInitiative, state.blueInitiative == state.redInitiative ? " (tie: reroll both)" : "")); } while (state.blueInitiative == state.redInitiative);
+            do { var blueFirst = dice.Roll(6); var blueSecond = state.blueEnhancedInitiative ? dice.Roll(6) : 0; var redFirst = dice.Roll(6); var redSecond = state.redEnhancedInitiative ? dice.Roll(6) : 0; state.blueInitiative = Mathf.Max(blueFirst, blueSecond); state.redInitiative = Mathf.Max(redFirst, redSecond); rolls.Add(string.Format("BLUE {0}={1}, RED {2}={3}{4}", blueSecond > 0 ? "2d6 keep highest" : "d6", blueSecond > 0 ? blueFirst + "/" + blueSecond + "->" + state.blueInitiative : blueFirst.ToString(), redSecond > 0 ? "2d6 keep highest" : "d6", redSecond > 0 ? redFirst + "/" + redSecond + "->" + state.redInitiative : redFirst.ToString(), state.blueInitiative == state.redInitiative ? " (tie: reroll both)" : "")); } while (state.blueInitiative == state.redInitiative);
+            state.blueEnhancedInitiative = false; state.redEnhancedInitiative = false;
             state.activeSide = state.blueInitiative > state.redInitiative ? "blue" : "red";
             state.firstSide = state.activeSide; state.firstSideFinished = false;
             Trace("Initiative", "Determine first side", "Each side rolls d6; ties reroll both dice.", string.Join("; ", rolls), state.activeSide.ToUpperInvariant() + " acts first.");
@@ -206,9 +208,17 @@ namespace DownRange.Tactical
 
         Texture2D MakeTexture(Color color) { var texture = new Texture2D(1, 1); texture.SetPixel(0, 0, color); texture.Apply(); return texture; }
         UnitData Unit(string id) { return state?.units?.FirstOrDefault(unit => unit.id == id); }
+        WeaponData SelectedWeapon(UnitData unit) { return unit?.weapons?.FirstOrDefault(weapon => weapon.id == state.selectedWeaponId) ?? unit?.weapons?.FirstOrDefault(); }
         bool Effective(UnitData unit) { return unit != null && unit.status != "downed" && unit.status != "dead"; }
         bool CanAct(UnitData unit) { return Effective(unit) && unit.side == state.activeSide && !unit.actionUsed && state.pendingTrigger == null; }
         void ConsumeAction(UnitData unit) { unit.actionUsed = true; }
+        void PrepareManualDice()
+        {
+            if (!state.manualDice || string.IsNullOrWhiteSpace(state.manualDiceQueue)) return;
+            var values = state.manualDiceQueue.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(value => { int parsed; return int.TryParse(value, out parsed) ? parsed : 0; }).Where(value => value > 0).ToArray();
+            dice.QueueManual(values); state.manualDiceQueue = "";
+            Trace("Dice", "Load physical dice", string.Join(", ", values), "Values are consumed left-to-right and clamped to the die being rolled.", values.Length + " physical result(s) queued.");
+        }
         string RollText(DieRoll roll) { return roll.second > 0 ? string.Format("[{0},{1}]→{2}", roll.first, roll.second, roll.result) : roll.result.ToString(CultureInfo.InvariantCulture); }
 
         void OnGUI()
@@ -269,6 +279,7 @@ namespace DownRange.Tactical
             if (terrain == null || !terrain.Ready) { GUI.color = new Color(1f, .78f, .3f, .75f); GUI.Box(new Rect(board.x + board.width * .62f, board.y + board.height * .07f, board.width * .25f, board.height * .31f), "RELAY ZONE"); GUI.color = Color.white; }
 
             if (state.showMissionZones) DrawExtractionZone(board);
+            DrawBattlefieldEffects(board);
             if (losTool) { HandleLosTool(board); DrawLosTool(board); }
 
             var selected = Unit(state.selectedId); var target = Unit(state.targetId);
@@ -305,6 +316,16 @@ namespace DownRange.Tactical
                 else { first = LosPoint(board, new Vector2(0f, 1f - depth)); second = LosPoint(board, new Vector2(1f, 1f - depth)); label = LosPoint(board, new Vector2(.5f, 1f - depth * .5f)); }
                 DrawLine(first, second, new Color(.26f, .9f, .72f, .9f), 3f);
                 GUI.Box(new Rect(label.x - 70f, label.y - 15f, 140f, 30f), "FRIENDLY EXFIL ZONE", smallStyle);
+            }
+        }
+
+        void DrawBattlefieldEffects(Rect board)
+        {
+            foreach (var effect in state.effects ?? new BattlefieldEffectData[0])
+            {
+                var center = LosPoint(board, new Vector2(effect.x / 100f, effect.y / 100f)); var width = effect.radius / request.board.widthInches * board.width * 2f; var height = effect.radius / request.board.heightInches * board.height * 2f;
+                var old = GUI.color; GUI.color = effect.type == "smoke" ? new Color(.72f, .75f, .72f, .42f) : effect.type == "illumination" ? new Color(1f, .88f, .35f, .35f) : new Color(1f, .3f, .08f, .45f); GUI.DrawTexture(new Rect(center.x - width / 2f, center.y - height / 2f, width, height), pixel); GUI.color = old;
+                GUI.Label(new Rect(center.x - 45f, center.y - 9f, 90f, 18f), effect.type.ToUpperInvariant(), smallStyle);
             }
         }
 
@@ -371,7 +392,7 @@ namespace DownRange.Tactical
         {
             if (terrain == null || !terrain.Ready) return new BattleLosResult { classification = state.cover };
             var result = terrain.EvaluateLineOfSight(start.x * 100f, start.y * 100f, end.x * 100f, end.y * 100f, UnitIdAt(start), UnitIdAt(end));
-            return result;
+            return ApplyEffectLos(start.x * 100f, start.y * 100f, end.x * 100f, end.y * 100f, result);
         }
         string UnitIdAt(Vector2 percent)
         {
@@ -380,7 +401,18 @@ namespace DownRange.Tactical
         }
         BattleLosResult SelectedLos(UnitData origin, UnitData target)
         {
-            return terrain != null && terrain.Ready && origin != null && target != null ? terrain.EvaluateLineOfSight(origin, target) : new BattleLosResult { classification = state.cover };
+            var result = terrain != null && terrain.Ready && origin != null && target != null ? terrain.EvaluateLineOfSight(origin, target) : new BattleLosResult { classification = state.cover };
+            return origin == null || target == null ? result : ApplyEffectLos(origin.x, origin.y, target.x, target.y, result);
+        }
+        BattleLosResult ApplyEffectLos(float ax, float ay, float bx, float by, BattleLosResult result)
+        {
+            foreach (var smoke in (state.effects ?? new BattlefieldEffectData[0]).Where(effect => effect.type == "smoke"))
+            {
+                var px = (smoke.x - ax) * request.board.widthInches / 100f; var py = (smoke.y - ay) * request.board.heightInches / 100f; var vx = (bx - ax) * request.board.widthInches / 100f; var vy = (by - ay) * request.board.heightInches / 100f; var length2 = vx * vx + vy * vy;
+                var t = length2 <= .001f ? 0f : Mathf.Clamp01((px * vx + py * vy) / length2); var dx = px - vx * t; var dy = py - vy * t;
+                if (Mathf.Sqrt(dx * dx + dy * dy) <= smoke.radius) return new BattleLosResult { classification = "blocked", blocker = "smoke", blockerDistance = Mathf.Sqrt(length2) * t, distance = Mathf.Sqrt(length2) };
+            }
+            return result;
         }
         string LosNotice(BattleLosResult result, float distance)
         {
@@ -444,7 +476,8 @@ namespace DownRange.Tactical
         void SelectToken(UnitData clicked)
         {
             var selected = Unit(state.selectedId);
-            if (selected != null && clicked.id != selected.id && (clicked.side != selected.side || clicked.status == "downed")) state.targetId = clicked.id;
+            var targetModifier = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            if (selected != null && clicked.id != selected.id && (clicked.side != selected.side || clicked.status == "downed" || targetModifier)) state.targetId = clicked.id;
             else state.selectedId = clicked.id;
             audio.Play(SoundCue.Click);
         }
@@ -486,6 +519,7 @@ namespace DownRange.Tactical
             var oldX = unit.x; var oldY = unit.y;
             miniatures?.FaceMovement(unit, oldX, oldY, x, y);
             unit.x = x; unit.y = y; unit.moved = true; unit.movesMade++; unit.reactionMove = false;
+            if (unit.kind == "vehicle") foreach (var passenger in state.units.Where(item => item.embarkedInId == unit.id)) { passenger.x = x; passenger.y = y; }
             foreach (var objective in state.objectives.Where(item => item.type == "extract-force" && item.side == unit.side)) if (!TacticalRules.InExtractionZone(unit, objective)) unit.enteredField = true;
             if (reactionMove) unit.reaction = false;
             var terrainText = path.impairedDistance > .01f ? string.Format("; {0:0.0}\" impaired, cost {1:0.0}\"", path.impairedDistance, path.cost) : "";
@@ -630,6 +664,20 @@ namespace DownRange.Tactical
             var zonesVisible = state.showMissionZones;
             state.showMissionZones = GUILayout.Toggle(state.showMissionZones, new GUIContent("Show mission zones", "Show or hide extraction and other mission-zone boundaries. Hidden by default; scoring remains active either way."));
             if (zonesVisible != state.showMissionZones) { Trace("Interface", "Toggle mission-zone overlay", "Show mission zones = " + zonesVisible, "Player changed the display-only overlay setting.", state.showMissionZones ? "Mission zones visible; rules and scoring unchanged." : "Mission zones hidden; rules and scoring unchanged."); audio.Play(SoundCue.Click); Save(); }
+            var teaching = state.teachingMode; state.teachingMode = GUILayout.Toggle(state.teachingMode, new GUIContent("Tabletop Teaching Mode", "Show the physical tabletop procedure and official rule source for every action."));
+            if (teaching != state.teachingMode) { Trace("Interface", "Toggle Teaching Mode", teaching.ToString(), "Display-only teaching assistance changed.", state.teachingMode ? "Teaching guidance enabled." : "Standard compact play enabled."); Save(); }
+            var manual = state.manualDice; state.manualDice = GUILayout.Toggle(state.manualDice, new GUIContent("Use physical dice", "Type physical die results below before resolving a command; values are consumed from left to right."));
+            if (state.manualDice)
+            {
+                GUILayout.Label("PHYSICAL DICE (comma separated)", smallStyle); state.manualDiceQueue = GUILayout.TextField(state.manualDiceQueue ?? "", 40);
+                GUILayout.Box("Roll the dice named by the action, enter their face values, then issue the command. Advantage/Disadvantage consumes two values.", guideStyle);
+            }
+            if (manual != state.manualDice) Save();
+            if (state.teachingMode)
+            {
+                GUILayout.Label("PROGRESSIVE TABLETOP DRILL", smallStyle); GUILayout.Box(TutorialLesson(state.tutorialStep), guideStyle); GUILayout.BeginHorizontal();
+                GUI.enabled = state.tutorialStep > 0; if (GUILayout.Button("PREVIOUS")) { state.tutorialStep--; Save(); } GUI.enabled = state.tutorialStep < 5; if (GUILayout.Button("NEXT")) { state.tutorialStep++; Save(); } GUI.enabled = true; GUILayout.EndHorizontal();
+            }
             GUILayout.Space(8); DrawActionMenu(unit, target);
             GUILayout.Space(8); DrawTurnGuide(unit, target);
             GUILayout.Space(5); GUILayout.Label(notice, smallStyle); GUILayout.EndScrollView(); GUILayout.EndArea();
@@ -641,7 +689,17 @@ namespace DownRange.Tactical
             GUILayout.Label("UNIT ACTIONS", smallStyle);
             var generalReason = ActionStateReason(unit);
             var canAct = string.IsNullOrEmpty(generalReason);
-            var weapon = unit.weapons?.FirstOrDefault();
+            if (unit.weapons != null && unit.weapons.Length > 1)
+            {
+                GUILayout.Label("SELECT WEAPON", smallStyle); var currentWeapon = Array.FindIndex(unit.weapons, item => item.id == state.selectedWeaponId); if (currentWeapon < 0) currentWeapon = 0; var nextWeapon = GUILayout.SelectionGrid(currentWeapon, unit.weapons.Select(item => new GUIContent(item.name, string.Format("Range {0:0.#}; Difficulty {1}; Damage d{2}{3}; Fan {4}; Radius {5:0.#}; Ammo {6}", item.range, item.difficulty, item.damageSides, item.damageModifier == 0 ? "" : item.damageModifier > 0 ? "+" + item.damageModifier : item.damageModifier.ToString(), item.fan, item.radius, item.ammunition < 0 ? "unlimited" : item.ammunition.ToString()))).ToArray(), 1); state.selectedWeaponId = unit.weapons[nextWeapon].id;
+            }
+            var weapon = SelectedWeapon(unit);
+            if (target != null && target.side != unit.side && target.kind == "vehicle")
+            {
+                GUILayout.Label("VEHICLE AIM POINT", smallStyle); var systems = new[] { "Whole vehicle", "Mobility", "Firepower", "Control" }; var currentSystem = state.targetedSystem == "mobility" ? 1 : state.targetedSystem == "firepower" ? 2 : state.targetedSystem == "control" ? 3 : 0; currentSystem = GUILayout.SelectionGrid(currentSystem, systems, 2); state.targetedSystem = currentSystem == 1 ? "mobility" : currentSystem == 2 ? "firepower" : currentSystem == 3 ? "control" : "";
+                GUILayout.Box(string.IsNullOrEmpty(state.targetedSystem) ? "Normal attack against the complete vehicle." : "Targeting a visible system imposes Disadvantage, waives the armor die-size restriction, and assigns damage only to that system.", guideStyle);
+            }
+            else state.targetedSystem = "";
             var opposingTarget = target != null && target.side != unit.side;
             var targetDistance = target == null ? 0f : TacticalRules.Distance(unit, target, request.board);
             var selectedLos = target == null ? new BattleLosResult { classification = "open" } : SelectedLos(unit, target);
@@ -675,6 +733,46 @@ namespace DownRange.Tactical
             else if (string.IsNullOrEmpty(suppressReason) && !CanAimSuppression(selectedLos)) suppressReason = "The first visible aim point is more than 6\" from the concealed target.";
             if (ActionMenuButton(Describe("SUPPRESS", "Pin an enemy instead of wounding it.", "1 action", "Target in the weapon's cone or radius; direct LOS is not required if the attacker can aim within 6\".",
                 "Roll Skill only; success gives the target Disadvantage until this side's next turn.", string.IsNullOrEmpty(suppressReason), suppressReason))) Fire(true);
+
+            var friendlyTarget = target != null && target.side == unit.side && target.id != unit.id;
+            var assistReason = !canAct ? generalReason : unit.kind != "troop" ? "Only troop units may Assist." : unit.moved ? "Assist is a Focus action; the assistant must remain stationary." : !friendlyTarget ? "Select another friendly unit whose plausible task this unit will assist." : string.Empty;
+            if (ActionMenuButton(Describe("ASSIST Â· FOCUS", "Aid a friendly Skill test or crew-served weapon.", "Entire turn (Focus)", "Stationary troop and a selected friendly performing a plausible shared task.", "Place an assisting marker beside the primary unit. Its next applicable Skill roll receives +1; crew-served weapons allow each reasonable assistant.", string.IsNullOrEmpty(assistReason), assistReason)))
+            { ConsumeAction(unit); unit.focused = true; unit.moved = true; unit.movesMade = 1; unit.assistTargetId = target.id; Trace("Assist", "Focus to Assist", unit.name + " assists " + target.name, "Spend the entire turn stationary; add +1 to the primary unit's plausible Skill test.", "ASSIST marker placed for this turn."); AddEvent(unit.name + " assists " + target.name + ".", "action"); Save(); }
+
+            var isCommander = unit.commander || (unit.role ?? "").ToLowerInvariant().Contains("leader") || (unit.role ?? "").ToLowerInvariant().Contains("command");
+            var mainUsed = unit.side == "blue" ? state.blueMainEffortUsed : state.redMainEffortUsed;
+            var commandLinked = friendlyTarget && (TacticalRules.Distance(unit, target, request.board) <= unit.move || unit.radio && target.radio && !unit.jammed && !target.jammed);
+            var commandReason = !canAct ? generalReason : !isCommander ? "Only a commander may designate Main Effort." : unit.kind == "vehicle" && unit.controlSystem != "operational" ? "A degraded/disabled Control system cannot designate Main Effort." : mainUsed ? "This side has already designated Main Effort this turn." : !friendlyTarget ? "Select a subordinate friendly unit." : !commandLinked ? "The subordinate is outside voice range and lacks an unjammed radio link." : string.Empty;
+            if (ActionMenuButton(Describe("DESIGNATE MAIN EFFORT", "Give a subordinate Advantage for the rest of this turn.", "1 action", "Commander and selected subordinate in voice range or connected by radio.", "Place a Main Effort marker by the subordinate; its Skill tests have Advantage for the remainder of the turn.", string.IsNullOrEmpty(commandReason), commandReason)))
+            { ConsumeAction(unit); target.mainEffort = true; if (unit.side == "blue") state.blueMainEffortUsed = true; else state.redMainEffortUsed = true; if (unit.radio) { unit.emitting = true; unit.emittingRound = state.round; } Trace("Command", "Designate Main Effort", unit.name + " to " + target.name, "Spend commander Action; radio use creates an emission when outside voice range.", target.name + " gains Advantage for the rest of this turn."); AddEvent(unit.name + " designates " + target.name + " as Main Effort.", "command"); Save(); }
+
+            var initiativeReason = !canAct ? generalReason : !isCommander ? "Only a commander may enhance initiative." : string.Empty;
+            if (ActionMenuButton(Describe("ENHANCE NEXT INITIATIVE", "Improve the side's next initiative roll.", "1 action", "Commander with an unused action.", "Place an Enhanced Initiative marker; roll one additional d6 in the next initiative and keep the highest.", string.IsNullOrEmpty(initiativeReason), initiativeReason)))
+            { ConsumeAction(unit); if (unit.side == "blue") state.blueEnhancedInitiative = true; else state.redEnhancedInitiative = true; Trace("Command", "Enhance Initiative", unit.name, "Spend one commander Action now; add a die to the side's next initiative roll and keep the highest.", "Enhanced Initiative marker placed."); Save(); }
+
+            var ewReason = !canAct ? generalReason : !unit.ew ? "This unit has no electronic-warfare system." : target == null || target.side == unit.side ? "Select an opposing emitting unit or remote platform." : string.Empty;
+            if (ActionMenuButton(Describe("EW Â· SIGINT / JAM", "Detect an emission or disrupt a radio/remote platform.", "1 action", "EW-equipped unit and opposing selected target.", "Roll Skill against Difficulty 5. An emitting target is identified; a radio user is jammed, while a remote non-autonomous flyer becomes inoperable.", string.IsNullOrEmpty(ewReason), ewReason)))
+            { PrepareManualDice(); ConsumeAction(unit); unit.emitting = true; unit.emittingRound = state.round; var ewRoll = dice.Skill(unit.skill, unit.suppressed || unit.status == "injured" ? -1 : 0); var success = ewRoll.result >= 5; if (success) { target.jammed = true; if (target.remote && !target.autonomous && target.flying) target.status = "downed"; } Trace("Electronic warfare", "SIGINT / jamming", unit.name + " targets " + target.name, "Skill " + RollText(ewRoll) + " vs Difficulty 5; EW action itself creates an emission.", success ? "SUCCESS: target detected/jammed." : "FAILED; emission remains detectable."); AddEvent(unit.name + (success ? " jams " : " fails to jam ") + target.name + ".", "signal"); Save(); }
+
+            var remoteReason = !canAct ? generalReason : !friendlyTarget || !target.remote || target.autonomous ? "Select a friendly non-autonomous remote platform." : !unit.radio || unit.jammed ? "The operator needs an unjammed signal system." : unit.moved ? "Remote operation requires Focus and remaining stationary." : string.Empty;
+            if (ActionMenuButton(Describe("OPERATE REMOTE Â· FOCUS", "Maintain a remote platform's control signal.", "Entire turn (Focus)", "Stationary operator with an unjammed Signal and selected non-autonomous remote platform.", "Place an emission marker on the operator; the remote platform may act this round using the operator's Skill for armed attacks.", string.IsNullOrEmpty(remoteReason), remoteReason)))
+            { ConsumeAction(unit); unit.focused = true; unit.moved = true; unit.movesMade = 1; unit.emitting = true; unit.emittingRound = state.round; target.remoteControlledRound = state.round; target.operatorUnitId = unit.id; Trace("Signal", "Operate remote platform", unit.name + " controls " + target.name, "Operator Focuses and uses Signal for the round; autonomous platforms do not require this.", target.name + " is operational; operator emission marker placed."); AddEvent(unit.name + " establishes remote control of " + target.name + ".", "signal"); Save(); }
+
+            var repairReason = !canAct ? generalReason : !unit.mechanic ? "This unit is not a mechanic." : !friendlyTarget || target.kind != "vehicle" ? "Select a friendly vehicle with a degraded or disabled system." : target.mobilitySystem == "operational" && target.firepowerSystem == "operational" && target.controlSystem == "operational" ? "All vehicle systems are operational." : string.Empty;
+            if (ActionMenuButton(Describe("REPAIR VEHICLE Â· FOCUS", "Restore one damaged vehicle system.", "Entire turn (Focus)", "Stationary mechanic adjacent to a friendly damaged vehicle.", "Roll Skill: Difficulty 5 for Degraded or 7 for Disabled. Improve one system by one state on success.", string.IsNullOrEmpty(repairReason), repairReason))) ResolveRepair(unit, target);
+
+            var boardReason = !canAct ? generalReason : unit.kind != "troop" ? "Only troop passengers board vehicles." : !friendlyTarget || target.kind != "vehicle" ? "Select an adjacent friendly vehicle." : TacticalRules.Distance(unit, target, request.board) > 1.5f ? "Move into base contact with the vehicle." : target.passengerCapacity <= 0 ? "That vehicle has no passenger capacity." : (target.passengerIds ?? new string[0]).Length >= target.passengerCapacity ? "The vehicle is full." : string.Empty;
+            if (ActionMenuButton(Describe("BOARD VEHICLE", "Embark this troop unit as passengers.", "During movement", "Troop in base contact with a friendly vehicle that has capacity.", "Place the troop miniature with the vehicle and record it as a passenger. Nonstandard loading instead requires Focus while the vehicle remains stationary.", string.IsNullOrEmpty(boardReason), boardReason)))
+            { var passengers = new List<string>(target.passengerIds ?? new string[0]); passengers.Add(unit.id); target.passengerIds = passengers.Distinct().ToArray(); unit.embarkedInId = target.id; unit.x = target.x; unit.y = target.y; unit.moved = true; unit.movesMade = 1; Trace("Passengers", "Board vehicle", unit.name + " boards " + target.name, "Normal passengers embark during movement while in base contact and within capacity.", "Passenger marker recorded."); AddEvent(unit.name + " boards " + target.name + ".", "move"); Save(); }
+
+            var transport = string.IsNullOrEmpty(unit.embarkedInId) ? null : Unit(unit.embarkedInId); var disembarkReason = transport == null ? "This unit is not embarked." : unit.side != state.activeSide ? "Wait for this side's turn." : unit.movesMade > 0 ? "This passenger has already moved this turn." : string.Empty;
+            if (ActionMenuButton(Describe("DISEMBARK", "Leave the transport and resume normal movement.", "During movement", "Embarked passenger during its side's turn.", "Remove the passenger marker and place the miniature in base contact; it may finish its normal Move.", string.IsNullOrEmpty(disembarkReason), disembarkReason)))
+            { var passengers = new List<string>(transport.passengerIds ?? new string[0]); passengers.Remove(unit.id); transport.passengerIds = passengers.ToArray(); unit.embarkedInId = ""; unit.x = Mathf.Clamp(transport.x + 1.5f, 0f, 100f); unit.y = transport.y; unit.moved = true; unit.movesMade = 1; Trace("Passengers", "Disembark", unit.name + " leaves " + transport.name, "Normal passenger disembarkation occurs during movement; place in base contact.", "Passenger deployed beside vehicle."); AddEvent(unit.name + " disembarks from " + transport.name + ".", "move"); Save(); }
+
+            var nearbyFire = (state.effects ?? new BattlefieldEffectData[0]).FirstOrDefault(effect => effect.type == "fire" && TacticalRules.Distance(unit.x, unit.y, effect.x, effect.y, request.board) <= Mathf.Max(1.5f, effect.radius));
+            var extinguishReason = !canAct ? generalReason : unit.kind != "troop" ? "A troop unit must extinguish the fire." : unit.moved ? "Extinguishing fire requires Focus and remaining stationary." : nearbyFire == null ? "No fire marker is within reach." : string.Empty;
+            if (ActionMenuButton(Describe("EXTINGUISH FIRE Â· FOCUS", "Remove a nearby fire marker.", "Entire turn (Focus)", "Stationary troop within the fire area or base contact.", "Spend the entire turn to remove the fire marker; units remaining in persistent hazards test damage once per turn.", string.IsNullOrEmpty(extinguishReason), extinguishReason)))
+            { ConsumeAction(unit); unit.focused = true; unit.moved = true; unit.movesMade = 1; state.effects = state.effects.Where(effect => effect.id != nearbyFire.id).ToArray(); Trace("Environment", "Extinguish fire", unit.name + " reaches fire marker", "Troop Focuses for the entire turn.", "Fire marker removed."); AddEvent(unit.name + " extinguishes a fire.", "environment"); Save(); }
 
             var reactionReason = canAct && !unit.reaction ? string.Empty : unit.reaction ? "This unit is already holding a reaction." : generalReason;
             if (ActionMenuButton(Describe("HOLD REACTION", "Reserve an attack for the enemy turn.", "1 action", "Effective unit with an unused action.",
@@ -721,12 +819,25 @@ namespace DownRange.Tactical
             return new ActionDescriptor { title = title, summary = summary, cost = cost, requirements = requirements, effect = effect, available = available, unavailable = unavailable };
         }
 
+        string TutorialLesson(int step)
+        {
+            var lessons = new[] {
+                "1/6 MOVEMENT & LOS\nSelect a unit, measure a legal path, move it, then use L to check an eye-height sight line. On the table: use a tape measure from base to base.",
+                "2/6 ATTACK PROCEDURE\nDeclare attacker, weapon, and target; establish range and LOS; identify modifiers; roll Skill; on success roll Damage against Defense.",
+                "3/6 ADVANTAGE & COVER\nCreate one Advantage and one Disadvantage and watch them cancel. Compare open, partial, and complete cover in Rules Trace.",
+                "4/6 REACTIONS & SUPPRESSION\nHold a Reaction, trigger it with an enemy action, and resolve it first. Then suppress a target and observe when the marker clears.",
+                "5/6 SPECIALISTS\nPractice Assist, Focus, medicine, radio observation, command, and EW. Pay attention to markers, duration, and emissions.",
+                "6/6 COMBINED ARMS\nPractice Fan/Radius weapons, smoke, limited ammo, passengers, vehicle system damage, and repair before playing without Teaching Mode."
+            }; return lessons[Mathf.Clamp(step, 0, lessons.Length - 1)];
+        }
+
         bool ActionMenuButton(ActionDescriptor action)
         {
             var status = action.available ? "<color=#91d6be>READY</color>" : "<color=#9aa39c>UNAVAILABLE</color>";
             var visible = "<b>" + action.title + "</b>  " + status + "\n" + action.summary;
             var availability = action.available ? "<color=#91d6be>AVAILABLE NOW</color>" : "<color=#e1b275>UNAVAILABLE:</color> " + action.unavailable;
-            var detail = "<b>" + action.title + "</b>\n<b>COST:</b> " + action.cost + "\n<b>REQUIRES:</b> " + action.requirements + "\n<b>EFFECT:</b> " + action.effect + "\n" + availability;
+            var tabletop = state.teachingMode ? "\n\n<b>AT A REAL TABLE:</b> Declare the action and target, place any required marker, measure range/LOS, gather the stated dice, resolve modifiers, compare the result, then record the outcome." : "";
+            var detail = "<b>" + action.title + "</b>\n<b>COST:</b> " + action.cost + "\n<b>REQUIRES:</b> " + action.requirements + "\n<b>EFFECT:</b> " + action.effect + tabletop + "\n" + availability;
             var clicked = GUILayout.Button(new GUIContent(visible, detail), action.available ? actionButtonStyle : unavailableActionStyle, GUILayout.Height(43f));
             if (GUILayoutUtility.GetLastRect().Contains(Event.current.mousePosition)) hoveredActionHelp = detail;
             if (!clicked) return false;
@@ -742,6 +853,8 @@ namespace DownRange.Tactical
             if (unit.reaction) return "This saved Reaction is used from the interrupt prompt when an enemy declares an action.";
             if (unit.side != state.activeSide) return "Wait for the " + unit.side.ToUpperInvariant() + " turn.";
             if (unit.actionUsed) return "This unit has already used its action.";
+            if (unit.jammed && unit.remote && !unit.autonomous) return "This remote unit is jammed and inoperable until its signal is restored.";
+            if (unit.remote && !unit.autonomous && unit.remoteControlledRound != state.round) return "A remote operator must Focus and establish a Signal for this platform this round.";
             return string.Empty;
         }
 
@@ -780,7 +893,7 @@ namespace DownRange.Tactical
             else if (target == null) action = "<color=#91d6be>2. ACTION: select a target or choose a utility action.</color>";
             else action = "<color=#91d6be>2. ACTION: target " + target.name + " is selected; choose an action.</color>";
             GUILayout.Box(move + "\n" + action + "\n3. END TURN when all units are finished (Space). Mission deadline: end of Round " + Mathf.Max(1, request.mission.durationTurns) + ".", guideStyle);
-            GUILayout.Label("Hover any miniature, roster entry, or button for details · F1 opens the full guide", smallStyle);
+            GUILayout.Label("Hover for details · Shift/Ctrl-click a friendly to target it for Assist, command, transport, or repair · F1 opens the full guide", smallStyle);
         }
 
         void Fire(bool suppress)
@@ -792,28 +905,107 @@ namespace DownRange.Tactical
 
         void ResolveFire(UnitData attacker, UnitData target, bool suppress, bool reactionResolution)
         {
-            var weapon = attacker?.weapons?.FirstOrDefault();
+            var weapon = SelectedWeapon(attacker);
+            if (weapon != null && weapon.ammunition == 0) { notice = weapon.name + " is out of limited ammunition."; Trace("Attack", "Declare Fire", attacker.name, "Limited-ammunition marker is expended.", "REJECTED."); audio.Play(SoundCue.Error); return; }
+            if (attacker != null && attacker.kind == "vehicle" && attacker.firepowerSystem == "disabled") { notice = "The vehicle Firepower system is disabled."; Trace("Vehicle damage", "Declare Fire", attacker.name, "Firepower system disabled.", "REJECTED."); audio.Play(SoundCue.Error); return; }
+            if (weapon != null && weapon.crewServed && attacker.moved) { notice = "Crew-served weapons require the primary operator to Focus and remain stationary."; Trace("Crew-served weapon", "Declare Fire", attacker.name + " moved this turn", "Primary and assistants must Focus and remain stationary.", "REJECTED."); audio.Play(SoundCue.Error); return; }
+            PrepareManualDice();
             BattleLosResult los = null;
             if (terrain != null && terrain.Ready && attacker != null && target != null) { los = SelectedLos(attacker, target); state.cover = los.classification; }
-            var result = TacticalRules.Attack(attacker, target, weapon, request.board, state.round, state.cover, suppress, dice, CanAimSuppression(los));
+            var assistants = state.units.Count(unit => unit.assistTargetId == attacker?.id && unit.focused && Effective(unit));
+            var remoteOperator = attacker != null && attacker.remote && !attacker.autonomous ? Unit(attacker.operatorUnitId) : null;
+            var result = TacticalRules.Attack(attacker, target, weapon, request.board, state.round, state.cover, suppress, dice, CanAimSuppression(los), assistants, remoteOperator?.skill ?? 0, state.targetedSystem);
             var attackInputs = string.Format("{0} → {1} · {2} · range {3:0.00}\"/{4:0.00}\" · LOS {5}", attacker?.name ?? "none", target?.name ?? "none", weapon?.name ?? "no weapon", attacker != null && target != null ? TacticalRules.Distance(attacker, target, request.board) : 0f, weapon?.range ?? 0f, state.cover);
             if (!result.valid) { Trace(suppress ? "Suppression" : "Attack", suppress ? "Declare Suppression" : "Declare Fire", attackInputs, result.reason, "REJECTED."); notice = result.reason; audio.Play(SoundCue.Error); return; }
             audio.Play(suppress ? SoundCue.Suppress : SoundCue.Fire);
             if (reactionResolution) attacker.reaction = false; else ConsumeAction(attacker); RaiseAlarm(attacker.name + " fired a weapon.");
-            var advantages = new List<string>(); var disadvantages = new List<string>();
+            if (weapon.ammunition > 0) weapon.ammunition--;
+            var advantages = new List<string>(); var disadvantages = new List<string>(); var nonDamaging = weapon.explosiveVariant == "smoke" || weapon.explosiveVariant == "illumination";
             if (!target.moved) advantages.Add("target did not move"); if (target.observedBy == attacker.side) advantages.Add("fires observation");
             if (state.cover == "partial") disadvantages.Add("partial cover/concealment"); if (attacker.status == "injured") disadvantages.Add("attacker injured"); if (attacker.suppressed) disadvantages.Add("attacker suppressed");
             var modifierText = string.Format("Advantage sources [{0}] · Disadvantage sources [{1}] · final mode {2}", advantages.Count == 0 ? "none" : string.Join(", ", advantages), disadvantages.Count == 0 ? "none" : string.Join(", ", disadvantages), result.skill.mode > 0 ? "Advantage" : result.skill.mode < 0 ? "Disadvantage" : "normal (none or canceled)");
             var attackMath = modifierText + string.Format(" · Skill {0} vs Difficulty {1}", RollText(result.skill), weapon.difficulty);
-            if (!suppress && result.hit) attackMath += string.Format(" · Damage {0} vs Defense {1}", RollText(result.damage), result.defense);
-            var attackOutcome = !result.hit ? "MISS" : suppress ? "SUCCESS: target suppressed" : result.casualty ? "SUCCESS: casualty; target downed" : "HIT: damage did not equal or exceed Defense";
+            if (!suppress && result.hit && !nonDamaging) attackMath += string.Format(" · Damage {0} vs Defense {1}", RollText(result.damage), result.defense);
+            var attackOutcome = !result.hit ? "MISS" : suppress ? "SUCCESS: target suppressed" : nonDamaging ? "SUCCESS: deploy non-damaging area" : result.casualty ? "SUCCESS: casualty; target downed" : "HIT: damage did not equal or exceed Defense";
             Trace(suppress ? "Suppression" : "Attack", reactionResolution ? "Resolve Reaction Fire" : suppress ? "Resolve Suppression" : "Resolve Fire", attackInputs, attackMath, attackOutcome);
             var reactionText = reactionResolution ? " as a Reaction before the triggering action" : "";
             if (!result.hit) AddEvent(string.Format("{0} misses {1} (skill {2} vs {3}).", attacker.name, target.name, RollText(result.skill), weapon.difficulty), "miss");
             else if (suppress) { target.suppressed = true; target.suppressedBySide = attacker.side; AddEvent(attacker.name + " suppresses " + target.name + reactionText + ".", "suppress"); }
-            else if (result.casualty) { target.status = "downed"; target.reaction = false; AddEvent(string.Format("{0} downs {1}{2} (damage {3} vs defense {4}).", attacker.name, target.name, reactionText, RollText(result.damage), result.defense), "hit"); audio.Play(SoundCue.Hit); }
+            else if (nonDamaging) AddEvent(attacker.name + " places " + weapon.explosiveVariant + " at " + target.name + ".", "action");
+            else if (result.casualty) { ApplyDamage(target, result.damage.result, result.defense, state.targetedSystem); target.reaction = false; AddEvent(string.Format("{0} damages {1}{2} (damage {3} vs defense {4}).", attacker.name, target.name, reactionText, RollText(result.damage), result.defense), "hit"); audio.Play(SoundCue.Hit); }
             else AddEvent(string.Format("{0} hits {1}{2}, but causes no casualty (damage {3} vs defense {4}).", attacker.name, target.name, reactionText, RollText(result.damage), result.defense), "hit");
+            if (result.hit && weapon.radius > 0f) ResolveRadius(attacker, target, weapon);
+            else if (!result.hit && weapon.radius > 0f) ResolveMissedRadius(attacker, target, weapon, Mathf.Max(1, weapon.difficulty - result.skill.result));
+            if (weapon.fan > 1) ResolveFan(attacker, target, weapon, suppress, assistants, remoteOperator?.skill ?? 0);
+            if (weapon.linkedWeapons > 1 && weapon.radius <= 0f) ResolveLinkedWeapons(attacker, target, weapon, suppress, assistants, remoteOperator?.skill ?? 0);
             Save();
+        }
+
+        void ResolveLinkedWeapons(UnitData attacker, UnitData target, WeaponData weapon, bool suppress, int assistants, int skillSides)
+        {
+            Trace("Vehicle weapons", "Fire linked weapons", attacker.name + " / " + weapon.name, "Same-type weapons controlled by one operator may attack the same target together; resolve each weapon separately.", (weapon.linkedWeapons - 1) + " additional linked attack(s).");
+            for (var index = 1; index < weapon.linkedWeapons && Effective(target); index++)
+            {
+                var los = SelectedLos(attacker, target); var result = TacticalRules.Attack(attacker, target, weapon, request.board, state.round, los.classification, suppress, dice, CanAimSuppression(los), assistants, skillSides);
+                var outcome = !result.hit ? "MISS" : suppress ? "SUPPRESSED" : result.casualty ? "CASUALTY" : "NO CASUALTY"; Trace("Vehicle weapons", "Resolve linked weapon " + (index + 1), target.name, "Skill " + RollText(result.skill) + " vs " + weapon.difficulty + (result.hit && !suppress ? "; Damage " + RollText(result.damage) + " vs " + result.defense : ""), outcome);
+                if (result.hit && suppress) { target.suppressed = true; target.suppressedBySide = attacker.side; } else if (result.casualty) ApplyDamage(target, result.damage.result, result.defense);
+            }
+        }
+
+        void ResolveFan(UnitData attacker, UnitData primary, WeaponData weapon, bool suppress, int assistants, int skillSides)
+        {
+            var extras = state.units.Where(unit => unit.side != attacker.side && unit.id != primary.id && Effective(unit) && TacticalRules.Distance(attacker, unit, request.board) <= weapon.range && TacticalRules.WithinFanCone(attacker, primary, unit, request.board)).OrderBy(unit => TacticalRules.Distance(attacker, unit, request.board)).Take(weapon.fan - 1).ToArray();
+            Trace("Fan weapon", suppress ? "Fan Suppression" : "Fan Fire", string.Format("Fan {0}; primary {1}; 45-degree cone", weapon.fan, primary.name), "Use up to Fan targets in the cone; resolve each attack separately and never combine damage.", extras.Length == 0 ? "No additional eligible targets." : "Repeat attacks: " + string.Join(", ", extras.Select(unit => unit.name)));
+            foreach (var extra in extras)
+            {
+                var extraLos = terrain != null && terrain.Ready ? SelectedLos(attacker, extra) : new BattleLosResult { classification = "open" };
+                var extraResult = TacticalRules.Attack(attacker, extra, weapon, request.board, state.round, extraLos.classification, suppress, dice, CanAimSuppression(extraLos), assistants, skillSides);
+                var outcome = !extraResult.valid ? "REJECTED: " + extraResult.reason : !extraResult.hit ? "MISS" : suppress ? "SUPPRESSED" : extraResult.casualty ? "CASUALTY" : "NO CASUALTY";
+                Trace("Fan weapon", "Resolve repeat attack", extra.name + " / LOS " + extraLos.classification, extraResult.valid ? "Skill " + RollText(extraResult.skill) + " vs Difficulty " + weapon.difficulty + (extraResult.hit && !suppress ? "; Damage " + RollText(extraResult.damage) + " vs Defense " + extraResult.defense : "") : extraResult.reason, outcome);
+                if (extraResult.hit && suppress) { extra.suppressed = true; extra.suppressedBySide = attacker.side; } else if (extraResult.casualty) { ApplyDamage(extra, extraResult.damage.result, extraResult.defense); extra.reaction = false; }
+            }
+        }
+
+        void ResolveRadius(UnitData attacker, UnitData impact, WeaponData weapon)
+        {
+            var radius = weapon.explosiveVariant == "smoke" || weapon.explosiveVariant == "illumination" ? weapon.radius * 2f : weapon.radius;
+            if (weapon.explosiveVariant == "smoke" || weapon.explosiveVariant == "illumination")
+            {
+                var effects = new List<BattlefieldEffectData>(state.effects ?? new BattlefieldEffectData[0]) { new BattlefieldEffectData { id = Guid.NewGuid().ToString("N"), type = weapon.explosiveVariant, side = attacker.side, x = impact.x, y = impact.y, radius = radius, expiresRound = state.round + 1 } }; state.effects = effects.ToArray();
+                Trace("Explosives", "Deploy " + weapon.explosiveVariant, string.Format("Impact {0:0.0},{1:0.0}; base Radius {2:0.#}", impact.x, impact.y, weapon.radius), "Smoke and illumination double normal Radius and persist until the creator ends its next turn.", string.Format("{0:0.#}-inch {1} area created.", radius, weapon.explosiveVariant)); return;
+            }
+            foreach (var affected in state.units.Where(unit => unit.id != impact.id && Effective(unit) && TacticalRules.Distance(impact, unit, request.board) <= radius).ToArray())
+            {
+                var blastLos = terrain != null && terrain.Ready ? terrain.EvaluateLineOfSight(impact.x, impact.y, affected.x, affected.y, impact.id, affected.id) : new BattleLosResult { classification = "open" };
+                if (blastLos.classification == "blocked") { Trace("Explosives", "Resolve Radius target", affected.name, "Complete cover from blast center.", "IMMUNE."); continue; }
+                var damage = dice.Skill(weapon.damageSides, blastLos.classification == "partial" ? -1 : 0, weapon.damageModifier); var casualty = damage.result >= affected.defense;
+                Trace("Explosives", "Resolve Radius target", affected.name + " / " + blastLos.classification, string.Format("Separate Damage {0} vs Defense {1}", RollText(damage), affected.defense), casualty ? "CASUALTY." : "NO CASUALTY.");
+                if (casualty) { ApplyDamage(affected, damage.result, affected.defense); affected.reaction = false; }
+            }
+        }
+
+        void ResolveMissedRadius(UnitData attacker, UnitData intended, WeaponData weapon, int missedBy)
+        {
+            var missRadius = weapon.radius * .5f * missedBy; var direction = dice.Roll(8) - 1; var angle = direction * Mathf.PI / 4f; var distance = missRadius;
+            var impact = new UnitData { id = "impact", name = "missed impact", x = Mathf.Clamp(intended.x + Mathf.Cos(angle) * distance / request.board.widthInches * 100f, 0f, 100f), y = Mathf.Clamp(intended.y + Mathf.Sin(angle) * distance / request.board.heightInches * 100f, 0f, 100f) };
+            Trace("Explosives", "Relocate missed impact", string.Format("Skill missed by {0}; weapon Radius {1:0.#}", missedBy, weapon.radius), string.Format("Maximum miss distance = Radius/2 x amount missed = {0:0.#}; digital direction d8={1}", missRadius, direction + 1), string.Format("Impact relocated to {0:0.0},{1:0.0}.", impact.x, impact.y)); ResolveRadius(attacker, impact, weapon);
+        }
+
+        void ApplyDamage(UnitData target, int damage, int defense, string targetedSystem = "")
+        {
+            if (target.kind != "vehicle") { target.status = "downed"; return; }
+            var steps = Mathf.Max(1, damage / Mathf.Max(1, defense));
+            for (var i = 0; i < steps; i++)
+            {
+                if (targetedSystem == "mobility") target.mobilitySystem = target.mobilitySystem == "operational" ? "degraded" : "disabled";
+                else if (targetedSystem == "firepower") target.firepowerSystem = target.firepowerSystem == "operational" ? "degraded" : "disabled";
+                else if (targetedSystem == "control") target.controlSystem = target.controlSystem == "operational" ? "degraded" : "disabled";
+                else if (target.mobilitySystem == "operational") target.mobilitySystem = "degraded"; else if (target.mobilitySystem == "degraded") target.mobilitySystem = "disabled";
+                else if (target.firepowerSystem == "operational") target.firepowerSystem = "degraded"; else if (target.firepowerSystem == "degraded") target.firepowerSystem = "disabled";
+                else if (target.controlSystem == "operational") target.controlSystem = "degraded"; else target.controlSystem = "disabled";
+            }
+            if (target.mobilitySystem == "disabled" && target.firepowerSystem == "disabled" && target.controlSystem == "disabled") target.status = "dead";
+            Trace("Vehicle damage", "Allocate damage steps", target.name, string.Format("floor(Damage {0} / Defense {1}) = {2} step(s); allocate among Mobility, Firepower, Control.", damage, defense, steps), string.Format("Mobility {0}; Firepower {1}; Control {2}; vehicle {3}.", target.mobilitySystem, target.firepowerSystem, target.controlSystem, target.status));
         }
 
         void RequestRadioObservation(UnitData unit, UnitData target)
@@ -826,7 +1018,7 @@ namespace DownRange.Tactical
         void ResolveRadioObservation(UnitData unit, UnitData target)
         {
             if (!Effective(unit) || !Effective(target)) return;
-            ConsumeAction(unit); target.observedBy = unit.side; target.observedRound = state.round;
+            ConsumeAction(unit); unit.emitting = true; unit.emittingRound = state.round; target.observedBy = unit.side; target.observedRound = state.round;
             Trace("Signal", "Fires observation", string.Format("Observer {0} · target {1} · radio equipped · LOS confirmed", unit.name, target.name), "Spend 1 Action; mark target observed by " + unit.side.ToUpperInvariant() + " until the observer's next turn.", "Friendly attacks against the target receive Advantage while the mark remains.");
             AddEvent(unit.name + " observes " + target.name + " for friendly fires.", "signal"); audio.Play(SoundCue.Radio); Save();
         }
@@ -844,9 +1036,20 @@ namespace DownRange.Tactical
             if (medic.moved) { notice = "Medical treatment requires Focus; the treating unit must not move this turn."; audio.Play(SoundCue.Error); return; }
             if (target == null || target.side != medic.side || target.status != "downed") { notice = "Select a downed friendly casualty."; audio.Play(SoundCue.Error); return; }
             var range = TacticalRules.Distance(medic, target, request.board); if (range > 1.5f) { notice = string.Format("Move adjacent first ({0:0.0}\" away).", range); audio.Play(SoundCue.Error); return; }
-            ConsumeAction(medic); medic.focused = true; medic.moved = true; medic.movesMade = 1; DieRoll roll; target.status = TacticalRules.Medicine(medic, dice, out roll);
+            PrepareManualDice(); ConsumeAction(medic); medic.focused = true; medic.moved = true; medic.movesMade = 1; DieRoll roll; target.status = TacticalRules.Medicine(medic, dice, out roll);
             Trace("Medical", "Focused casualty treatment", string.Format("Medic {0} medical Skill d{1} · casualty {2} · range {3:0.00}\" · medic status {4}", medic.name, medic.medicalSkill, target.name, range, medic.status), string.Format("Medical Skill {0}; full-turn Focus; Table 2-2 bands 1–2 dead, 3–4 downed, 5–7 injured, 8+ healthy", RollText(roll)), target.name + " becomes " + target.status.ToUpperInvariant() + ".");
             AddEvent(string.Format("{0} treats {1}: {2} — {3}.", medic.name, target.name, RollText(roll), target.status), "medical"); audio.Play(SoundCue.Medical); Save();
+        }
+
+        void ResolveRepair(UnitData mechanic, UnitData vehicle)
+        {
+            PrepareManualDice(); ConsumeAction(mechanic); mechanic.focused = true; mechanic.moved = true; mechanic.movesMade = 1;
+            var system = vehicle.mobilitySystem != "operational" ? "mobility" : vehicle.firepowerSystem != "operational" ? "firepower" : "control";
+            var condition = system == "mobility" ? vehicle.mobilitySystem : system == "firepower" ? vehicle.firepowerSystem : vehicle.controlSystem; var difficulty = condition == "disabled" ? 7 : 5;
+            var assistants = state.units.Count(unit => unit.assistTargetId == mechanic.id && unit.focused && Effective(unit)); var roll = dice.Skill(mechanic.skill, mechanic.suppressed || mechanic.status == "injured" ? -1 : 0, assistants);
+            if (roll.result >= difficulty) { var improved = condition == "disabled" ? "degraded" : "operational"; if (system == "mobility") vehicle.mobilitySystem = improved; else if (system == "firepower") vehicle.firepowerSystem = improved; else vehicle.controlSystem = improved; }
+            Trace("Vehicle repair", "Focused system repair", mechanic.name + " repairs " + vehicle.name + " " + system, string.Format("Skill {0}{1} vs Difficulty {2} ({3})", RollText(roll), assistants > 0 ? " + " + assistants + " assistants" : "", difficulty, condition), roll.result >= difficulty ? "SUCCESS: system improves one state." : "FAILED: system unchanged.");
+            AddEvent(mechanic.name + (roll.result >= difficulty ? " repairs " : " fails to repair ") + vehicle.name + " " + system + ".", "repair"); Save();
         }
 
         int ExtractedCount(ObjectiveData objective)
@@ -992,9 +1195,16 @@ namespace DownRange.Tactical
         void StartSide(string side)
         {
             state.activeSide = side;
-            foreach (var unit in state.units.Where(item => item.side == side)) { unit.actionUsed = false; unit.moved = false; unit.movesMade = 0; unit.focused = false; unit.sprint = false; unit.reaction = false; unit.reactionMove = false; }
+            if (side == "blue") state.blueMainEffortUsed = false; else state.redMainEffortUsed = false;
+            foreach (var unit in state.units.Where(item => item.side == side)) { unit.actionUsed = false; unit.moved = false; unit.movesMade = 0; unit.focused = false; unit.sprint = false; unit.reaction = false; unit.reactionMove = false; unit.mainEffort = false; unit.assistTargetId = ""; if (unit.emitting && unit.emittingRound < state.round) unit.emitting = false; }
             foreach (var unit in state.units.Where(item => item.suppressedBySide == side)) { unit.suppressed = false; unit.suppressedBySide = ""; }
             foreach (var unit in state.units.Where(item => item.observedBy == side)) { unit.observedBy = ""; unit.observedRound = 0; }
+            state.effects = (state.effects ?? new BattlefieldEffectData[0]).Where(effect => effect.side != side || effect.expiresRound > state.round).ToArray();
+            foreach (var unit in state.units.Where(item => item.side == side && Effective(item))) foreach (var hazard in state.effects.Where(effect => effect.type == "fire" || effect.type == "hazard"))
+            {
+                if (TacticalRules.Distance(unit.x, unit.y, hazard.x, hazard.y, request.board) > Mathf.Max(.5f, hazard.radius)) continue;
+                var damage = dice.Roll(6); var casualty = damage >= unit.defense; Trace("Environment", "Persistent hazard damage", unit.name + " remains in " + hazard.type, string.Format("Once-per-turn d6 Damage {0} vs Defense {1}", damage, unit.defense), casualty ? "CASUALTY." : "NO CASUALTY."); if (casualty) ApplyDamage(unit, damage, unit.defense);
+            }
             AddEvent(side.ToUpperInvariant() + " turn begins.", "system");
         }
 
@@ -1058,6 +1268,18 @@ namespace DownRange.Tactical
         {
             var kind = (category ?? "").ToLowerInvariant(); var action = (command ?? "").ToLowerInvariant(); section = ""; page = 0;
             if (kind == "initiative") { section = "Rules 2.2.1 — Initiative"; page = 6; }
+            else if (kind == "assist") { section = "Rules 2.2.2.1 — Assisting"; page = 6; }
+            else if (kind == "crew-served weapon") { section = "Rules 2.6.3 — Crew-served weapons"; page = 10; }
+            else if (kind == "fan weapon") { section = "Rules 3.2.3 — Fan"; page = 17; }
+            else if (kind == "explosives") { section = "Rules 3.2.4 and 3.4.1 — Radius and explosives"; page = 17; }
+            else if (kind == "command") { section = "Rules 5.3 — Command"; page = 26; }
+            else if (kind == "electronic warfare") { section = "Rules 5.2 — Electronic warfare"; page = 26; }
+            else if (kind == "vehicle damage") { section = "Advanced Armor 1.3 — Vehicle damage"; page = 5; }
+            else if (kind == "vehicle repair") { section = "Advanced Armor 1.5 — Vehicle repair"; page = 7; }
+            else if (kind == "vehicle weapons") { section = "Rules 4.1 — Vehicles"; page = 22; }
+            else if (kind == "dice") { section = "Rules 1.2 — Tests, Advantage, and Disadvantage"; page = 5; }
+            else if (kind == "passengers") { section = "Rules 4.2 — Passengers"; page = 22; }
+            else if (kind == "environment") { section = "Rules 2.9 — Environmental damage"; page = 13; }
             else if (kind == "movement") { section = action.Contains("sprint") ? "Rules 2.3.1.1 — Sprinting" : "Rules 2.3–2.3.1 — Movement"; page = action.Contains("sprint") ? 7 : 6; }
             else if (kind == "line of sight") { section = "Rules 2.4.1 — Checking visibility"; page = 7; }
             else if (kind == "attack") { section = "Rules 2.4–2.6.4 — Attack sequence"; page = 7; }
@@ -1083,10 +1305,10 @@ namespace DownRange.Tactical
                 else if (action.Contains("move")) { section = "Rules 2.3 — Movement"; page = 6; }
             }
         }
-        string LocalRulesPdfPath()
+        string LocalRulesPdfPath(bool armor = false)
         {
-            var configured = request?.settings?.rulesPdfPath; if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;
-            var name = "Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf";
+            var configured = request?.settings?.rulesPdfPath; if (!armor && !string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;
+            var name = armor ? "Armored Addendum Compressed-617a27e4519c9747b41005d25c9c39b4.pdf" : "Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf";
             var candidates = new[] {
                 Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "official", "DownRangeLatest", name)),
                 Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "docs", "official", "DownRangeLatest", name))
@@ -1095,10 +1317,32 @@ namespace DownRange.Tactical
         }
         void OpenRulesPage(RuleCalculation item)
         {
-            var pdf = LocalRulesPdfPath();
+            var pdf = LocalRulesPdfPath((item?.ruleSection ?? "").StartsWith("Advanced Armor", StringComparison.OrdinalIgnoreCase));
             if (item == null || item.rulePage <= 0) { notice = "This computation is scenario-specific and has no universal rules page."; audio.Play(SoundCue.Error); return; }
             if (string.IsNullOrEmpty(pdf)) { notice = "The authoritative Rules PDF could not be found. Citation: " + item.ruleSection + ", page " + item.rulePage + "."; audio.Play(SoundCue.Error); return; }
-            Application.OpenURL(new Uri(pdf).AbsoluteUri + "#page=" + item.rulePage); notice = "Opening " + item.ruleSection + ", PDF page " + item.rulePage + ". If the viewer ignores page anchors, use this citation manually."; audio.Play(SoundCue.Click);
+            var url = PdfPageUrl(pdf, item.rulePage); var browser = BrowserPdfViewerPath();
+            if (!string.IsNullOrEmpty(browser))
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = browser, Arguments = "\"" + url + "\"", UseShellExecute = true });
+                    notice = "Opening " + item.ruleSection + ", PDF page " + item.rulePage + " in the browser PDF viewer."; audio.Play(SoundCue.Click); return;
+                }
+                catch (Exception error) { Debug.LogWarning("Browser PDF launch failed: " + error.Message); }
+            }
+            Application.OpenURL(url); notice = "Opening " + item.ruleSection + ", PDF page " + item.rulePage + ". The fallback default PDF handler may ignore page anchors."; audio.Play(SoundCue.Click);
+        }
+        public static string PdfPageUrl(string path, int page) { return new Uri(path).AbsoluteUri + "#page=" + Mathf.Max(1, page); }
+        string BrowserPdfViewerPath()
+        {
+            var candidates = new[] {
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+                Environment.ExpandEnvironmentVariables(@"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe")
+            };
+            return candidates.FirstOrDefault(path => !string.IsNullOrEmpty(path) && File.Exists(path)) ?? "";
         }
         void Save() { if (state == null || string.IsNullOrEmpty(statePath)) return; state.rollCount = dice?.RollCount ?? state.rollCount; File.WriteAllText(statePath, JsonUtility.ToJson(state, true)); }
 

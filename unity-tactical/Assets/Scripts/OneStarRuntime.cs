@@ -304,22 +304,25 @@ namespace DownRange.Tactical
                 var marker = root.AddComponent<OneStarUnitMarker>(); marker.data = force; marker.status = "ready";
                 var color = force.side == "blue" ? new Color(.10f, .56f, .78f) : force.side == "red" ? new Color(.76f, .16f, .12f) : new Color(.75f, .68f, .30f);
                 var sideMaterial = MaterialFor("unit-" + force.side, color); var dark = MaterialFor("unit-dark", new Color(.09f, .11f, .095f));
-                marker.selectionRing = CreatePrimitive(PrimitiveType.Cylinder, "Selection ring", new Vector3(0f, .08f, 0f), new Vector3(1.15f, .055f, 1.15f), MaterialFor("selection", new Color(1f, .82f, .20f), true), root.transform, false); marker.selectionRing.SetActive(false);
-                CreatePrimitive(PrimitiveType.Cylinder, "Unit base", new Vector3(0f, .18f, 0f), new Vector3(.82f, .16f, .82f), dark, root.transform);
-                if (!CreateImportedForceModels(force, root.transform) && force.kind == "vehicle")
+                var imported = CreateImportedForceModels(force, root.transform);
+                if (!imported) CreatePrimitive(PrimitiveType.Cylinder, "Fallback unit base", new Vector3(0f, .10f, 0f), new Vector3(.82f, .09f, .82f), dark, root.transform);
+                if (!imported && force.kind == "vehicle")
                 {
                     CreatePrimitive(PrimitiveType.Cube, "Vehicle hull", new Vector3(0f, .68f, 0f), new Vector3(1.65f, .52f, 2.35f), sideMaterial, root.transform);
                     CreatePrimitive(PrimitiveType.Cube, "Vehicle turret", new Vector3(0f, 1.12f, -.1f), new Vector3(1.05f, .36f, 1.0f), dark, root.transform);
                 }
-                else if (root.transform.childCount <= 2 && force.kind == "uas")
+                else if (!imported && force.kind == "uas")
                 {
                     CreatePrimitive(PrimitiveType.Sphere, "UAS body", new Vector3(0f, 1.5f, 0f), new Vector3(.7f, .22f, .7f), sideMaterial, root.transform);
                     CreateBox("UAS arms", new Vector3(0f, 1.5f, 0f), new Vector3(2.1f, .08f, .14f), dark, root.transform); CreateBox("UAS arms", new Vector3(0f, 1.5f, 0f), new Vector3(.14f, .08f, 2.1f), dark, root.transform);
                 }
-                else if (root.transform.childCount <= 2)
+                else if (!imported)
                 {
                     CreatePrimitive(PrimitiveType.Capsule, "Unit miniature", new Vector3(0f, 1.02f, 0f), new Vector3(.55f, .78f, .55f), sideMaterial, root.transform);
                 }
+                var footprint = SelectionFootprint(force);
+                var ringHeight = force.kind == "vehicle" ? .045f : .145f;
+                marker.selectionRing = MiniatureMarkerGeometry.CreateRing("Selection ring", root.transform, ringHeight, footprint + .018f, footprint + .07f, .018f, MaterialFor("selection", new Color(1f, .82f, .20f), true)); marker.selectionRing.SetActive(false);
                 CreateLabel(force.name, new Vector3(0f, 2.55f, 0f), color, root.transform);
                 markers[force.id] = marker;
             }
@@ -343,6 +346,18 @@ namespace DownRange.Tactical
                 default: modelNames = force.side == "blue" ? new[] { "USMC Rifleman" } : force.side == "red" ? new[] { "PLANMC Rifleman" } : new string[0]; break;
             }
             return ImportedMiniatureFactory.CreateModels(modelNames, force.side, force.kind, parent);
+        }
+
+        float SelectionFootprint(OneStarForce force)
+        {
+            if (force.kind == "vehicle") return 1.25f;
+            if (force.kind == "uas") return .58f;
+            switch (force.id)
+            {
+                case "us-1": case "us-2": case "us-3": case "lpm-light": return 1.02f;
+                case "us-hq": case "us-weapons": return .78f;
+                default: return .46f;
+            }
         }
 
         void AddImportedModelCollider(GameObject model)

@@ -57,13 +57,21 @@ namespace DownRange.Tactical
             if (prefab == null) { Debug.LogWarning("Imported miniature is unavailable: " + modelName); return false; }
             var model = UnityEngine.Object.Instantiate(prefab, parent);
             model.name = modelName + " playtest model";
-            model.transform.localPosition = offset + Vector3.up * .34f;
+            model.transform.localPosition = offset;
             model.transform.localRotation = Quaternion.identity;
             var vehicle = modelName.Contains("ZBL-09") || modelName.Contains("EQ2050");
             model.transform.localScale = Vector3.one * (vehicle ? .62f : kind == "uas" || kind == "vehicle" && modelName.Contains("Hornet") ? .46f : .72f);
             Paint(model, modelName, resourcePath, side, kind, vehicle);
             AddCollider(model);
+            GroundModel(model, parent);
             return true;
+        }
+
+        static void GroundModel(GameObject model, Transform parent)
+        {
+            var renderers = model.GetComponentsInChildren<Renderer>(); if (renderers.Length == 0) return;
+            var bounds = renderers[0].bounds; for (var index = 1; index < renderers.Length; index++) bounds.Encapsulate(renderers[index].bounds);
+            var groundY = parent.TransformPoint(Vector3.zero).y; model.transform.position += Vector3.up * (groundY - bounds.min.y + .012f);
         }
 
         static void Paint(GameObject model, string modelName, string resourcePath, string side, string kind, bool vehicle)
@@ -147,14 +155,14 @@ namespace DownRange.Tactical
         {
             var root = new GameObject(unit.name + " - 3D campaign miniature");
             var marker = root.AddComponent<CampaignMiniatureMarker>(); marker.unitId = unit.id;
-            marker.selectionRing = Cylinder("Selection ring", root.transform, .07f, 1.05f, selected); marker.selectionRing.SetActive(false);
-            marker.targetRing = Cylinder("Target ring", root.transform, .10f, .94f, targeted); marker.targetRing.SetActive(false);
-            var unitBase = Cylinder("Faction unit base", root.transform, .18f, .80f, unit.side == "blue" ? blueBase : redBase);
-            marker.baseRenderer = unitBase.GetComponent<Renderer>();
             var visual = new GameObject("Facing miniature").transform; visual.SetParent(root.transform); marker.modelRoot = visual;
             var modelName = ImportedMiniatureFactory.ModelFor(unit);
             if (!ImportedMiniatureFactory.CreateModel(modelName, unit.side, unit.flying ? "uas" : unit.kind, visual, Vector3.zero))
                 Fallback(unit, visual);
+            var footprint = unit.kind == "vehicle" ? .92f : unit.flying ? .54f : .43f;
+            var ringHeight = unit.kind == "vehicle" ? .045f : .145f;
+            marker.selectionRing = MiniatureMarkerGeometry.CreateRing("Selection ring", root.transform, ringHeight, footprint + .018f, footprint + .064f, .018f, selected); marker.selectionRing.SetActive(false);
+            marker.targetRing = MiniatureMarkerGeometry.CreateRing("Target ring", root.transform, ringHeight + .004f, footprint + .078f, footprint + .118f, .018f, targeted); marker.targetRing.SetActive(false);
             if (!unit.facingSet) { unit.facing = unit.side == "blue" ? 0f : 180f; unit.facingSet = true; }
             root.transform.rotation = Quaternion.Euler(0f, unit.facing, 0f);
             markers[unit.id] = marker;
@@ -170,7 +178,7 @@ namespace DownRange.Tactical
                 marker.selectionRing.SetActive(unit.id == selectedId);
                 marker.targetRing.SetActive(unit.id == targetId && unit.id != selectedId);
                 marker.modelRoot.localRotation = unit.status == "downed" || unit.status == "dead" ? Quaternion.Euler(0f, 0f, 78f) : Quaternion.identity;
-                marker.baseRenderer.sharedMaterial = unit.status == "dead" ? darkBase : unit.side == "blue" ? blueBase : redBase;
+                if (marker.baseRenderer != null) marker.baseRenderer.sharedMaterial = unit.status == "dead" ? darkBase : unit.side == "blue" ? blueBase : redBase;
             }
         }
 
@@ -202,6 +210,57 @@ namespace DownRange.Tactical
         {
             var shader = Shader.Find(unlit ? "Unlit/Color" : "Standard") ?? Shader.Find("Legacy Shaders/Diffuse");
             var material = new Material(shader) { name = name, color = color }; if (!unlit && material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", .12f); return material;
+        }
+    }
+
+    public static class MiniatureMarkerGeometry
+    {
+        public static float FootprintRadius(Transform content, Transform relativeTo, float fallback)
+        {
+            var renderers = content == null ? new Renderer[0] : content.GetComponentsInChildren<Renderer>(); if (renderers.Length == 0) return fallback;
+            var radius = 0f;
+            foreach (var renderer in renderers)
+            {
+                var bounds = renderer.bounds;
+                foreach (var x in new[] { bounds.min.x, bounds.max.x }) foreach (var z in new[] { bounds.min.z, bounds.max.z })
+                {
+                    var local = relativeTo.InverseTransformPoint(new Vector3(x, bounds.min.y, z)); radius = Mathf.Max(radius, new Vector2(local.x, local.z).magnitude);
+                }
+            }
+            return Mathf.Clamp(radius, .28f, 1.8f);
+        }
+
+        public static GameObject CreateRing(string name, Transform parent, float y, float innerRadius, float outerRadius, float thickness, Material material, int segments = 64)
+        {
+            segments = Mathf.Max(12, segments); innerRadius = Mathf.Max(.01f, innerRadius); outerRadius = Mathf.Max(innerRadius + .01f, outerRadius); thickness = Mathf.Max(.004f, thickness);
+            var item = new GameObject(name); item.transform.SetParent(parent); item.transform.localPosition = new Vector3(0f, y, 0f); item.transform.localRotation = Quaternion.identity; item.transform.localScale = Vector3.one;
+            const int tubeSegments = 8; var vertices = new Vector3[(segments + 1) * (tubeSegments + 1)]; var triangles = new List<int>(segments * tubeSegments * 12);
+            var majorRadius = (innerRadius + outerRadius) * .5f; var radialRadius = (outerRadius - innerRadius) * .5f; var verticalRadius = thickness * .5f;
+            for (var index = 0; index <= segments; index++)
+            {
+                var angle = index / (float)segments * Mathf.PI * 2f; var x = Mathf.Cos(angle); var z = Mathf.Sin(angle);
+                for (var tube = 0; tube <= tubeSegments; tube++)
+                {
+                    var tubeAngle = tube / (float)tubeSegments * Mathf.PI * 2f; var radius = majorRadius + Mathf.Cos(tubeAngle) * radialRadius;
+                    vertices[index * (tubeSegments + 1) + tube] = new Vector3(x * radius, Mathf.Sin(tubeAngle) * verticalRadius, z * radius);
+                }
+            }
+            for (var index = 0; index < segments; index++)
+            {
+                for (var tube = 0; tube < tubeSegments; tube++)
+                {
+                    var a = index * (tubeSegments + 1) + tube; var b = (index + 1) * (tubeSegments + 1) + tube; var c = b + 1; var d = a + 1;
+                    AddDoubleSidedQuad(triangles, a, b, c, d);
+                }
+            }
+            var mesh = new Mesh { name = name + " mesh", vertices = vertices, triangles = triangles.ToArray() }; mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            item.AddComponent<MeshFilter>().sharedMesh = mesh; item.AddComponent<MeshRenderer>().sharedMaterial = material; return item;
+        }
+
+        static void AddDoubleSidedQuad(List<int> triangles, int a, int b, int c, int d)
+        {
+            triangles.Add(a); triangles.Add(b); triangles.Add(c); triangles.Add(a); triangles.Add(c); triangles.Add(d);
+            triangles.Add(c); triangles.Add(b); triangles.Add(a); triangles.Add(d); triangles.Add(c); triangles.Add(a);
         }
     }
 }

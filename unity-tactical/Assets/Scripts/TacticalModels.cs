@@ -14,20 +14,26 @@ namespace DownRange.Tactical
     }
     [Serializable] public class TerrainCellData { public int x; public int y; public string type; public float elevation; }
     [Serializable] public class BoardInfo { public string mapPath; public float widthInches = 64f; public float heightInches = 42.6667f; public float pixelsPerInch = 24f; public TerrainInfo terrain; }
-    [Serializable] public class BattleSettings { public string mode = "hotseat"; public int seed = 1; public bool autosave = true; public string rulesPdfPath; }
+    [Serializable] public class BattleSettings { public string mode = "hotseat"; public int seed = 1; public bool autosave = true; public string rulesPdfPath; public bool teachingMode = true; public bool manualDice; }
     [Serializable] public class WeaponData
     {
         public string id; public string name; public float range; public int difficulty; public int damageSides;
         public int damageModifier; public int fan = 1; public float radius; public int ammunition = -1;
+        public bool crewServed; public bool antiAir; public string explosiveVariant = "damage"; public int linkedWeapons = 1;
     }
     [Serializable] public class UnitData
     {
         public string id; public string side; public string name; public string role; public string forceId; public string kind = "troop"; public string modelId;
-        public float x; public float y; public float move = 8f; public int skill = 6; public int medicalSkill; public int defense = 4;
+        public float x; public float y; public float move = 8f; public int skill = 6; public int medicalSkill; public int defense = 4; public int defenseDiceCount; public int defenseSides; public int defenseModifier;
         public float facing; public bool facingSet;
         public string status = "healthy"; public bool radio; public bool flying; public bool ew; public bool tracked; public bool roadBound; public bool amphibious; public WeaponData[] weapons;
         public bool actionUsed; public bool moved; public int movesMade; public bool reaction; public bool reactionMove; public bool focused; public bool sprint; public bool suppressed; public bool enteredField;
         public string suppressedBySide; public string observedBy; public int observedRound;
+        public bool commander; public bool mechanic; public bool autonomous; public bool remote; public string operatorUnitId; public int remoteControlledRound;
+        public string embarkedInId;
+        public string assistTargetId; public int assistCount; public bool mainEffort; public bool emitting; public int emittingRound; public bool jammed;
+        public string mobilitySystem = "operational"; public string firepowerSystem = "operational"; public string controlSystem = "operational";
+        public int passengerCapacity; public string[] passengerIds; public bool passengersExposed;
     }
     [Serializable] public class ObjectiveData
     {
@@ -47,6 +53,7 @@ namespace DownRange.Tactical
         public ObjectiveData[] objectives; public UnitData[] units;
     }
     [Serializable] public class BattleEvent { public int round; public string text; public string kind; }
+    [Serializable] public class BattlefieldEffectData { public string id; public string type; public string side; public float x; public float y; public float radius; public int expiresRound; }
     [Serializable] public class RuleCalculation
     {
         public int sequence; public int round; public string side; public string category; public string command;
@@ -57,9 +64,11 @@ namespace DownRange.Tactical
         public string requestId; public int round = 1; public string activeSide = "blue"; public string firstSide = "blue";
         public bool firstSideFinished; public int blueInitiative; public int redInitiative; public bool alarm; public string alarmReason; public bool endedByDeadline;
         public int observationTurns; public bool impairedMovement; public bool showMissionZones; public bool completed; public int rollCount;
-        public string selectedId; public string targetId; public string cover = "open";
+        public bool teachingMode = true; public bool manualDice; public string manualDiceQueue = ""; public int tutorialStep;
+        public bool blueEnhancedInitiative; public bool redEnhancedInitiative; public bool blueMainEffortUsed; public bool redMainEffortUsed;
+        public string selectedId; public string targetId; public string selectedWeaponId; public string targetedSystem; public string cover = "open";
         public PendingTriggerData pendingTrigger; public string[] reactionQueue; public int reactionIndex; public string reactionMoveUnitId;
-        public UnitData[] units; public ObjectiveData[] objectives; public BattleEvent[] events; public RuleCalculation[] calculations; public int nextCalculationSequence;
+        public UnitData[] units; public ObjectiveData[] objectives; public BattleEvent[] events; public BattlefieldEffectData[] effects; public RuleCalculation[] calculations; public int nextCalculationSequence;
     }
     [Serializable] public class UnitResult { public string id; public float x; public float y; public float facing; public string status; }
     [Serializable] public class ObjectiveResult { public string id; public bool complete; }

@@ -32,6 +32,11 @@ namespace DownRange.Editor
             Require(!blockedSuppression.valid, "Suppression without a nearby aim point should remain invalid.");
             var aimedSuppression = TacticalRules.Attack(healthy, injured, weapon, board, 1, "blocked", true, new DeterministicDice(42), true);
             Require(aimedSuppression.valid, "Suppression should allow a blocked target when an aim point is within six inches.");
+            var physicalDice = new DeterministicDice(42); physicalDice.QueueManual(new[] { 99, 0, 4 }); Require(physicalDice.Roll(6) == 6 && physicalDice.Roll(8) == 1 && physicalDice.Roll(4) == 4, "Physical dice queue must consume and clamp supplied faces.");
+            var conePrimary = new UnitData { x = 20f, y = 0f }; var coneInside = new UnitData { x = 20f, y = 5f }; var coneOutside = new UnitData { x = 0f, y = 20f };
+            Require(TacticalRules.WithinFanCone(healthy, conePrimary, coneInside, board), "Fan target inside the 45-degree cone was rejected.");
+            Require(!TacticalRules.WithinFanCone(healthy, conePrimary, coneOutside, board), "Fan target outside the 45-degree cone was accepted.");
+            var vehicle = new UnitData { kind = "vehicle", move = 12f, mobilitySystem = "degraded" }; Require(Math.Abs(TacticalRules.MovementAllowance(vehicle, false) - 6f) < .001f, "Degraded vehicle Mobility must halve Move."); vehicle.mobilitySystem = "disabled"; Require(TacticalRules.MovementAllowance(vehicle, false) == 0f, "Disabled vehicle Mobility must prevent movement.");
             injured.status = "downed";
             var downedTarget = TacticalRules.Attack(healthy, injured, weapon, board, 1, "open", false, new DeterministicDice(42));
             Require(!downedTarget.valid && downedTarget.reason.Contains("already"), "A unit already out of the fight must not be attacked again.");
@@ -47,6 +52,8 @@ namespace DownRange.Editor
             var traceJson = JsonUtility.ToJson(new BattleState { calculations = new[] { new RuleCalculation { sequence = 7, round = 2, side = "blue", category = "Attack", command = "Fire", inputs = "d6", computation = "5 vs 3", outcome = "Hit", ruleSection = "Rules 2.4–2.6.4", rulePage = 7 } }, nextCalculationSequence = 8 });
             var traceState = JsonUtility.FromJson<BattleState>(traceJson);
             Require(traceState.calculations != null && traceState.calculations.Length == 1 && traceState.calculations[0].sequence == 7 && traceState.calculations[0].rulePage == 7 && traceState.nextCalculationSequence == 8, "Persistent rules trace failed to round-trip.");
+            var anchoredPdf = BattleRuntime.PdfPageUrl(Path.Combine("C:\\", "Rules and Such", "Rules.pdf"), 11);
+            Require(anchoredPdf.StartsWith("file:") && anchoredPdf.Contains("Rules%20and%20Such") && anchoredPdf.EndsWith("#page=11"), "Browser PDF page anchor generation failed.");
             var spritePath = Path.Combine(Application.dataPath, "StreamingAssets", "Sprites");
             foreach (var name in new[] { "infantry.png", "medic.png", "uas.png" })
             {
@@ -87,6 +94,7 @@ namespace DownRange.Editor
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Combat lifesaver", medicalSkill = 8 }) == "USMC Corpsman", "Campaign medic model mapping failed.");
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "blue", role = "Scout team", weapons = new[] { new WeaponData { name = "M249" } } }) == "USMC M249 Gunner", "Campaign automatic rifleman model mapping failed.");
             Require(ImportedMiniatureFactory.ModelFor(new UnitData { side = "red", role = "Relay guard" }) == "LPM Rifleman", "Campaign opposition model mapping failed.");
+            ValidateSelectionRing();
             ValidateAudioCues();
             ValidateLineOfSight();
             Debug.Log("Down Range tactical validation passed.");
@@ -101,6 +109,19 @@ namespace DownRange.Editor
                 foreach (SoundCue cue in Enum.GetValues(typeof(SoundCue))) Require(audio.HasClip(cue), "Missing procedural audio clip for " + cue + ".");
             }
             finally { UnityEngine.Object.DestroyImmediate(host); }
+        }
+
+        static void ValidateSelectionRing()
+        {
+            var host = new GameObject("Selection ring validation fixture"); var material = new Material(Shader.Find("Unlit/Color") ?? Shader.Find("Standard"));
+            try
+            {
+                var ring = MiniatureMarkerGeometry.CreateRing("Test selection ring", host.transform, .347f, .395f, .455f, .018f, material, 24); var mesh = ring.GetComponent<MeshFilter>().sharedMesh;
+                Require(mesh != null && mesh.vertexCount == 225, "Selection ring mesh was not generated at the requested resolution.");
+                foreach (var vertex in mesh.vertices) Require(new Vector2(vertex.x, vertex.z).magnitude >= .394f, "Selection ring contains solid center geometry.");
+                Require(ring.GetComponent<Collider>() == null, "Selection ring must not affect movement or line of sight.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(host); UnityEngine.Object.DestroyImmediate(material); }
         }
 
         static void ValidateLineOfSight()

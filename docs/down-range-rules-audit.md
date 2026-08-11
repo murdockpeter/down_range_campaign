@@ -38,18 +38,8 @@ The full 33-page **Rules v1.4.2** governs tactical adjudication. The Quick Start
 - Mission reconnaissance now uses the rules' open, partial, and total concealment classifications. Open enemy LOS confirms detection; partial concealment requires the observer to pass a scenario-defined Skill check with Disadvantage; total concealment blocks detection. The alarm test itself is a Mission #2 scenario adjudication, not an additional universal spotting rule (Rules 2.4.1.1 and 2.7).
 - Data-driven extraction zones require units to deploy beyond the friendly band and return effective before they count. Mission duration is enforced after both sides complete the final specified round; these are scenario contract rules rather than universal tactical actions.
 
-## Known implementation work still required
+## Remaining implementation work
 
-The current campaign scenario uses a deliberately narrow subset of Down Range. These full-rule systems remain partial or unimplemented and should not yet be described as complete:
+This section previously listed the pre-expansion backlog and is now stale: several listed systems have playable implementations, but some remain partial or use provisional digital adjudication. The maintained status matrix, milestone plan, test gates, and next sprint are in [`rules-implementation-roadmap.md`](rules-implementation-roadmap.md).
 
-- automatic-weapon Fan attacks against multiple targets and repeated attacks;
-- explosive Radius placement, area damage, smoke, illumination, and ammunition tracking;
-- dice-based vehicle Defense, weapon-versus-armor die restrictions in Unity, and the Armored Addendum damage systems;
-- crew-served weapon assistance and static Skill modifiers;
-- weapon-specific Focus requirements, training, anti-air penalties, and more detailed sensor-specific concealment interactions;
-- Main Effort, command initiative signaling, situational-awareness relays, EW actions, and remote-piloted vehicle Focus;
-- suppression Fan/cone selection against multiple units. The current UI resolves one selected target at a time.
-
-The current Reaction interrupt exposes Fire and Sprint because those are the supported reaction-capable actions in this resolver. Additional equipment and special-ability actions should join the prompt as those rules systems are implemented.
-
-This audit should be updated whenever one of these systems becomes authoritative in the Unity resolver.
+The roadmap deliberately distinguishes **present in the UI** from **verified against the complete tabletop rule**. In particular, automatic Fan target allocation and d8 explosive miss direction are provisional and must be replaced by the player choices specified in the Rules before those systems are called complete.

@@ -15,3 +15,5 @@ Open this directory with Unity `6000.2.12f1`. Enter Play Mode to use the bundled
 ```
 
 The player is generated at `Build/DownRangeTactical.exe`. Windows Mono is used for the development build, so IL2CPP and MSVC are not required.
+
+New battles default to Tabletop Teaching Mode. The right panel provides progressive drills, physical-dice input, full mouse-over procedures, and actions for Fan/Radius weapons, Assist, command/EW, vehicles, passengers, and environmental effects. Every resolution is retained in Rules Trace with a page-targeted link to the packaged Rules or Armored Addendum PDF.

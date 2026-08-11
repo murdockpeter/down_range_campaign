@@ -61,7 +61,7 @@ function createBattleRequest(state, options = {}) {
       pixelsPerInch: 24,
       terrain
     },
-    settings: { mode: 'hotseat', seed, autosave: true, rulesPdfPath: options.rulesPdfPath || '' },
+    settings: { mode: 'hotseat', seed, autosave: true, rulesPdfPath: options.rulesPdfPath || '', teachingMode: options.teachingMode !== false, manualDice: Boolean(options.manualDice) },
     objectives: state.mission.objectives.map(objective => ({
       id: objective.id, text: objective.text, points: objective.points, complete: Boolean(objective.complete),
       type: objective.type || '', actionLabel: objective.actionLabel || '', side: objective.side || 'blue',
@@ -83,13 +83,17 @@ function createBattleRequest(state, options = {}) {
       facing: Number(unit.facing ?? (unit.side === 'red' ? 180 : 0)), facingSet: true,
       move: Number(unit.move), skill: Number(unit.skill),
       medicalSkill: Number(unit.medicalSkill || 0),
-      defense: Number(unit.defense || 0),
+      defense: Number(typeof unit.defense === 'number' ? unit.defense : unit.defense?.value || 0),
+      defenseDiceCount: Number(unit.defenseDice?.count || (unit.defense?.sides ? 1 : 0)), defenseSides: Number(unit.defenseDice?.sides || unit.defense?.sides || 0), defenseModifier: Number(unit.defenseDice?.modifier || unit.defense?.modifier || 0),
       status: unit.status || 'healthy',
       radio: Boolean(unit.radio), flying: Boolean(unit.flying), ew: Boolean(unit.ew), tracked: Boolean(unit.tracked), roadBound: Boolean(unit.roadBound), amphibious: Boolean(unit.amphibious), enteredField: Boolean(unit.enteredField),
+      commander: Boolean(unit.commander || /leader|command/i.test(unit.role || '')), mechanic: Boolean(unit.mechanic), autonomous: Boolean(unit.autonomous), remote: Boolean(unit.remote), operatorUnitId: unit.operatorUnitId || '',
+      mobilitySystem: unit.mobilitySystem || 'operational', firepowerSystem: unit.firepowerSystem || 'operational', controlSystem: unit.controlSystem || 'operational', passengerCapacity: Number(unit.passengerCapacity || 0), passengerIds: unit.passengerIds || [], passengersExposed: Boolean(unit.passengersExposed),
       weapons: (unit.weapons || []).map(weapon => ({
         id: weapon.id, name: weapon.name, range: Number(weapon.range), difficulty: Number(weapon.difficulty),
         damageSides: Number(weapon.damage?.sides || 0), damageModifier: Number(weapon.damage?.modifier || 0),
-        fan: Number(weapon.fan || 1), radius: Number(weapon.radius || 0), ammunition: weapon.ammunition == null ? -1 : Number(weapon.ammunition)
+        fan: Number(weapon.fan || 1), radius: Number(weapon.radius || 0), ammunition: weapon.ammunition == null ? -1 : Number(weapon.ammunition),
+        crewServed: Boolean(weapon.crewServed), antiAir: Boolean(weapon.antiAir), explosiveVariant: weapon.explosiveVariant || 'damage', linkedWeapons: Number(weapon.linkedWeapons || 1)
       }))
     }))
   };
