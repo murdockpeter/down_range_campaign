@@ -21,6 +21,8 @@ namespace DownRange.Tactical
         ProceduralBattleTerrain terrain;
         CampaignMiniatureSet miniatures;
         bool showHelp;
+        bool showRulesTrace;
+        bool traceNewestFirst = true;
         bool losTool;
         bool losStartSet;
         bool losEndSet;
@@ -33,6 +35,7 @@ namespace DownRange.Tactical
         Vector2 rosterScroll;
         Vector2 logScroll;
         Vector2 inspectorScroll;
+        Vector2 traceScroll;
         string hoveredActionHelp;
         string notice = "Select an active miniature, then click the terrain to move or an opposing miniature to target.";
         GUIStyle titleStyle, smallStyle, panelStyle, tokenStyle, selectedTokenStyle, logStyle, guideStyle, tooltipStyle, objectiveStyle, actionButtonStyle, unavailableActionStyle;
@@ -66,11 +69,12 @@ namespace DownRange.Tactical
 
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.F1)) { showHelp = !showHelp; audio.Play(SoundCue.Click); }
-            if (showHelp && Input.GetKeyDown(KeyCode.Escape)) { showHelp = false; audio.Play(SoundCue.Click); }
-            if (state != null && !showHelp) terrain?.UpdateInput();
+            if (Input.GetKeyDown(KeyCode.F1)) { showHelp = !showHelp; showRulesTrace = false; audio.Play(SoundCue.Click); }
+            if (Input.GetKeyDown(KeyCode.F2)) { showRulesTrace = !showRulesTrace; showHelp = false; audio.Play(SoundCue.Click); }
+            if ((showHelp || showRulesTrace) && Input.GetKeyDown(KeyCode.Escape)) { showHelp = false; showRulesTrace = false; audio.Play(SoundCue.Click); }
+            if (state != null && !showHelp && !showRulesTrace) terrain?.UpdateInput();
             if (state != null && miniatures != null) miniatures.Sync(state.units, state.selectedId, state.targetId);
-            if (state == null || state.completed || showHelp) return;
+            if (state == null || state.completed || showHelp || showRulesTrace) return;
             if (Input.GetKeyDown(KeyCode.L)) ToggleLosTool();
             if (Input.GetKeyDown(KeyCode.Space)) EndTurn();
         }
@@ -131,6 +135,8 @@ namespace DownRange.Tactical
                 Save();
             }
             NormalizeObjectiveDefinitions();
+            if (state.calculations == null) state.calculations = new RuleCalculation[0];
+            if (state.nextCalculationSequence <= 0) state.nextCalculationSequence = state.calculations.Length == 0 ? 1 : state.calculations.Max(item => item.sequence) + 1;
             foreach (var unit in state.units ?? new UnitData[0]) if (unit.moved && unit.movesMade == 0) unit.movesMade = 1;
             dice = new DeterministicDice(request.settings.seed, state.rollCount);
             LoadMap();
@@ -174,9 +180,11 @@ namespace DownRange.Tactical
 
         void RollInitiative()
         {
-            do { state.blueInitiative = dice.Roll(6); state.redInitiative = dice.Roll(6); } while (state.blueInitiative == state.redInitiative);
+            var rolls = new List<string>();
+            do { state.blueInitiative = dice.Roll(6); state.redInitiative = dice.Roll(6); rolls.Add(string.Format("BLUE d6={0}, RED d6={1}{2}", state.blueInitiative, state.redInitiative, state.blueInitiative == state.redInitiative ? " (tie: reroll both)" : "")); } while (state.blueInitiative == state.redInitiative);
             state.activeSide = state.blueInitiative > state.redInitiative ? "blue" : "red";
             state.firstSide = state.activeSide; state.firstSideFinished = false;
+            Trace("Initiative", "Determine first side", "Each side rolls d6; ties reroll both dice.", string.Join("; ", rolls), state.activeSide.ToUpperInvariant() + " acts first.");
         }
 
         void BuildStyles()
@@ -212,8 +220,9 @@ namespace DownRange.Tactical
             if (state != null)
             {
                 GUI.Label(new Rect(17, 34, 650, 20), string.Format("ROUND {0}/{1}  ·  {2} TURN  ·  {3}  ·  INIT B{4}/R{5}  ·  RULES {6}", state.round, Mathf.Max(1, request.mission.durationTurns), state.activeSide.ToUpperInvariant(), request.mission.locationName, state.blueInitiative, state.redInitiative, request.rulesVersion), smallStyle);
-                if (GUI.Button(new Rect(width - 492, 16, 68, 34), new GUIContent(audio.Enabled ? "SOUND" : "MUTED", "Toggle all tactical sound cues. This preference is saved."))) { audio.Enabled = !audio.Enabled; audio.Play(SoundCue.Click); }
-                if (GUI.Button(new Rect(width - 416, 16, 82, 34), new GUIContent("TURN HELP", "Open the turn sequence and action reference. Shortcut: F1."))) { showHelp = true; audio.Play(SoundCue.Click); }
+                if (GUI.Button(new Rect(width - 606, 16, 68, 34), new GUIContent(audio.Enabled ? "SOUND" : "MUTED", "Toggle all tactical sound cues. This preference is saved."))) { audio.Enabled = !audio.Enabled; audio.Play(SoundCue.Click); }
+                if (GUI.Button(new Rect(width - 530, 16, 106, 34), new GUIContent("RULES TRACE", "Open the complete rules-computation audit. Shortcut: F2."))) { showRulesTrace = true; showHelp = false; audio.Play(SoundCue.Click); }
+                if (GUI.Button(new Rect(width - 416, 16, 82, 34), new GUIContent("TURN HELP", "Open the turn sequence and action reference. Shortcut: F1."))) { showHelp = true; showRulesTrace = false; audio.Play(SoundCue.Click); }
                 if (GUI.Button(new Rect(width - 326, 16, 112, 34), new GUIContent("END TURN", "Finish this side's turn. Units that did not act will automatically hold a reaction. Shortcut: Space."))) EndTurn();
                 if (GUI.Button(new Rect(width - 206, 16, 190, 34), new GUIContent(state.completed ? "QUIT TO TRACKER" : "END MISSION", state.completed ? "Close the tactical game and return to Campaign Command." : "Score objectives and export the battle result to the campaign tracker."))) { if (state.completed) { audio.Play(SoundCue.Click); Application.Quit(); } else FinishBattle(); }
             }
@@ -223,6 +232,7 @@ namespace DownRange.Tactical
             var inspectorRect = new Rect(width - right, header, right, height - header - footer);
             var stageRect = new Rect(left, header, width - left - right, height - header - footer);
             if (showHelp) { DrawHelpOverlay(); return; }
+            if (showRulesTrace) { DrawRulesTraceOverlay(); return; }
             DrawRoster(rosterRect); DrawBoard(stageRect); DrawInspector(inspectorRect); DrawFooter(new Rect(0, height - footer, width, footer));
             if (state.pendingTrigger != null) DrawReactionPrompt();
             DrawTooltip();
@@ -257,7 +267,7 @@ namespace DownRange.Tactical
             else { GUI.color = new Color(.16f, .2f, .15f); GUI.DrawTexture(board, pixel); GUI.color = Color.white; GUI.Label(new Rect(board.x + 20, board.y + 20, 300, 40), "MAP ASSET UNAVAILABLE\nGameplay remains functional.", smallStyle); }
             if (terrain == null || !terrain.Ready) { GUI.color = new Color(1f, .78f, .3f, .75f); GUI.Box(new Rect(board.x + board.width * .62f, board.y + board.height * .07f, board.width * .25f, board.height * .31f), "RELAY ZONE"); GUI.color = Color.white; }
 
-            DrawExtractionZone(board);
+            if (state.showMissionZones) DrawExtractionZone(board);
             if (losTool) { HandleLosTool(board); DrawLosTool(board); }
 
             var selected = Unit(state.selectedId); var target = Unit(state.targetId);
@@ -321,6 +331,7 @@ namespace DownRange.Tactical
                 losEnd = point; losEndSet = true;
                 measuredLos = MeasureLos(losStart, losEnd); state.cover = measuredLos.classification;
                 notice = LosNotice(measuredLos, LosDistance(losStart, losEnd));
+                Trace("Line of sight", "Measure two tabletop points", string.Format("Start {0:0.0}%,{1:0.0}% · End {2:0.0}%,{3:0.0}%", losStart.x * 100f, losStart.y * 100f, losEnd.x * 100f, losEnd.y * 100f), string.Format("Eye-height physics trace · distance {0:0.0}\" · first blocker {1}", LosDistance(losStart, losEnd), string.IsNullOrEmpty(measuredLos.blocker) ? "none" : measuredLos.blocker), measuredLos.classification.ToUpperInvariant());
             }
             audio.Play(SoundCue.Los); current.Use();
         }
@@ -443,14 +454,20 @@ namespace DownRange.Tactical
             var unit = Unit(interruptMove ? state.reactionMoveUnitId : state.selectedId);
             var reactionMove = interruptMove || unit != null && unit.reactionMove;
             var movesAllowed = unit != null && unit.sprint ? 2 : 1;
-            if (unit == null || !Effective(unit) || unit.focused || (!reactionMove && (unit.side != state.activeSide || unit.movesMade >= movesAllowed))) { notice = "That unit cannot move now."; audio.Play(SoundCue.Error); return false; }
+            if (unit == null || !Effective(unit) || unit.focused || (!reactionMove && (unit.side != state.activeSide || unit.movesMade >= movesAllowed))) { var reason = unit == null ? "No unit selected." : !Effective(unit) ? "Unit is " + unit.status + "." : unit.focused ? "Focus requires remaining stationary." : unit.side != state.activeSide ? "It is the opposing side's turn." : "All permitted movement segments were used."; Trace("Movement", "Declare Move", unit?.name ?? "No unit", reason, "REJECTED before path measurement."); notice = "That unit cannot move now."; audio.Play(SoundCue.Error); return false; }
             float x, y;
-            if (terrain != null && terrain.Ready) { if (!terrain.TryPercent(mouse, out x, out y)) { notice = "Choose a point on the tabletop."; return false; } }
+            if (terrain != null && terrain.Ready) { if (!terrain.TryPercent(mouse, out x, out y)) { Trace("Movement", "Choose Move destination", unit.name, "Pointer ray did not intersect legal tabletop terrain.", "REJECTED."); notice = "Choose a point on the tabletop."; return false; } }
             else { x = Mathf.Clamp((mouse.x - board.x) / board.width * 100f, 0f, 100f); y = Mathf.Clamp((mouse.y - board.y) / board.height * 100f, 0f, 100f); }
             var path = MovementPath(unit, unit.x, unit.y, x, y); var allowance = TacticalRules.MovementAllowance(unit, false) / (unit.sprint && !reactionMove ? 2f : 1f);
-            if (!path.valid) { notice = path.reason; audio.Play(SoundCue.Error); return false; }
-            if (path.cost > allowance + .05f) { notice = string.Format("Path costs {0:0.0}\" ({1:0.0}\" measured, {2:0.0}\" impaired); allowance is {3:0.0}\".", path.cost, path.distance, path.impairedDistance, allowance); audio.Play(SoundCue.Error); return false; }
-            if (!reactionMove && BeginReactionWindow(new PendingTriggerData { kind = "move", actorId = unit.id, destinationX = x, destinationY = y })) return true;
+            var moveInputs = string.Format("{0} from {1:0.0}%,{2:0.0}% to {3:0.0}%,{4:0.0}% · base Move {5:0.0}\"", unit.name, unit.x, unit.y, x, y, allowance);
+            var moveMath = string.Format("Measured {0:0.00}\" + impaired surcharge {1:0.00}\" = effective cost {2:0.00}\"; allowance {3:0.00}\"", path.distance, path.impairedDistance, path.cost, allowance);
+            if (!path.valid) { Trace("Movement", "Declare Move", moveInputs, path.reason, "REJECTED: impassable path."); notice = path.reason; audio.Play(SoundCue.Error); return false; }
+            if (path.cost > allowance + .05f) { Trace("Movement", "Declare Move", moveInputs, moveMath, "REJECTED: effective cost exceeds allowance."); notice = string.Format("Path costs {0:0.0}\" ({1:0.0}\" measured, {2:0.0}\" impaired); allowance is {3:0.0}\".", path.cost, path.distance, path.impairedDistance, allowance); audio.Play(SoundCue.Error); return false; }
+            if (!reactionMove)
+            {
+                Trace("Movement", "Declare Move", moveInputs, moveMath, "LEGAL declaration; check opposing saved Reactions before resolution.");
+                if (BeginReactionWindow(new PendingTriggerData { kind = "move", actorId = unit.id, destinationX = x, destinationY = y })) return true;
+            }
             ExecuteMovement(unit, x, y, path, reactionMove);
             if (interruptMove) { state.reactionMoveUnitId = ""; AdvanceReactionQueue(); }
             return true;
@@ -471,6 +488,7 @@ namespace DownRange.Tactical
             foreach (var objective in state.objectives.Where(item => item.type == "extract-force" && item.side == unit.side)) if (!TacticalRules.InExtractionZone(unit, objective)) unit.enteredField = true;
             if (reactionMove) unit.reaction = false;
             var terrainText = path.impairedDistance > .01f ? string.Format("; {0:0.0}\" impaired, cost {1:0.0}\"", path.impairedDistance, path.cost) : "";
+            Trace("Movement", reactionMove ? "Resolve Reaction Sprint" : "Resolve Move", string.Format("{0} · measured {1:0.00}\" · impaired {2:0.00}\"", unit.name, path.distance, path.impairedDistance), string.Format("{0:0.00}\" normal + {1:0.00}\" impaired surcharge = {2:0.00}\" cost", path.distance, path.impairedDistance, path.cost), string.Format("ACCEPTED at {0:0.0}%,{1:0.0}%; facing follows movement.", x, y));
             AddEvent(string.Format("{0} moves {1:0.0}\"{2}{3}.", unit.name, path.distance, terrainText, reactionMove ? " as a Reaction before the trigger" : ""), "move"); audio.Play(SoundCue.Move); EvaluateDetection(unit, "movement"); Save();
         }
 
@@ -482,6 +500,7 @@ namespace DownRange.Tactical
                 .Where(unit => unit.kind == "troop" || CanReactionFire(unit, actor, out _)).Select(unit => unit.id).ToArray();
             if (candidates.Length == 0) return false;
             state.pendingTrigger = trigger; state.reactionQueue = candidates; state.reactionIndex = 0; state.reactionMoveUnitId = "";
+            Trace("Reaction", "Open interrupt window", actor.name + " declares " + TriggerName(trigger), "Eligible saved Reactions: " + string.Join(", ", candidates.Select(id => Unit(id)?.name ?? id)), candidates.Length + " reactor(s) may resolve before the trigger.");
             notice = string.Format("{0} declares {1}. Reactions resolve before it.", actor.name, TriggerName(trigger));
             AddEvent(notice, "reaction"); audio.Play(SoundCue.Reaction); Save(); return true;
         }
@@ -528,7 +547,7 @@ namespace DownRange.Tactical
             if (!string.IsNullOrEmpty(state.reactionMoveUnitId))
             {
                 GUI.Label(new Rect(rect.x + 18, rect.y + 48, rect.width - 36, 86), string.Format("{0} is using its saved Reaction to Sprint before {1}'s {2}.\n\nClick a legal destination on the tabletop. Path terrain is measured normally and may cost double.", reactor.name, actor?.name ?? "the enemy", TriggerName(trigger)), guideStyle);
-                if (GUI.Button(new Rect(rect.x + 18, rect.yMax - 52, 150, 32), "CANCEL SPRINT")) { state.reactionMoveUnitId = ""; state.selectedId = actor?.id; notice = "Reaction Sprint canceled; choose another reaction or pass."; Save(); }
+                if (GUI.Button(new Rect(rect.x + 18, rect.yMax - 52, 150, 32), "CANCEL SPRINT")) { Trace("Reaction", "Cancel Reaction Sprint destination", reactor.name, "No movement resolved and the saved Reaction was not spent.", "Return to the interrupt choice."); state.reactionMoveUnitId = ""; state.selectedId = actor?.id; notice = "Reaction Sprint canceled; choose another reaction or pass."; Save(); }
                 return;
             }
             GUI.Label(new Rect(rect.x + 18, rect.y + 46, rect.width - 36, 70), string.Format("{0} has declared {1}.\n{2} may spend its saved Reaction now; the Reaction resolves first.", actor?.name ?? "Enemy unit", TriggerName(trigger), reactor.name), guideStyle);
@@ -538,9 +557,9 @@ namespace DownRange.Tactical
             GUI.enabled = oldEnabled;
             var canSprint = reactor.kind == "troop";
             GUI.enabled = canSprint;
-            if (GUI.Button(new Rect(rect.x + 166, rect.yMax - 84, 134, 34), new GUIContent("SPRINT FIRST", "Use the Reaction for one normal Move before the triggering action resolves."))) { state.reactionMoveUnitId = reactor.id; state.selectedId = reactor.id; notice = "Reaction Sprint: click a destination on the tabletop."; audio.Play(SoundCue.Sprint); Save(); }
+            if (GUI.Button(new Rect(rect.x + 166, rect.yMax - 84, 134, 34), new GUIContent("SPRINT FIRST", "Use the Reaction for one normal Move before the triggering action resolves."))) { Trace("Reaction", "Choose Reaction Sprint", reactor.name, "Saved Reaction converts to one normal Move before " + TriggerName(trigger) + ".", "Awaiting a legal destination; trigger remains paused."); state.reactionMoveUnitId = reactor.id; state.selectedId = reactor.id; notice = "Reaction Sprint: click a destination on the tabletop."; audio.Play(SoundCue.Sprint); Save(); }
             GUI.enabled = oldEnabled;
-            if (GUI.Button(new Rect(rect.x + 314, rect.yMax - 84, 138, 34), new GUIContent("PASS", "Keep the saved Reaction for a later trigger."))) AdvanceReactionQueue();
+            if (GUI.Button(new Rect(rect.x + 314, rect.yMax - 84, 138, 34), new GUIContent("PASS", "Keep the saved Reaction for a later trigger."))) { Trace("Reaction", "Pass interrupt", reactor.name, "No Reaction is spent against " + TriggerName(trigger) + ".", "Reaction retained for a later eligible trigger."); AdvanceReactionQueue(); }
             if (!canFire) GUI.Label(new Rect(rect.x + 18, rect.yMax - 43, rect.width - 36, 30), "Fire unavailable: " + fireReason, smallStyle);
         }
 
@@ -551,6 +570,7 @@ namespace DownRange.Tactical
             if (!Effective(actor))
             {
                 state.pendingTrigger = null; state.reactionQueue = null; state.reactionIndex = 0; state.reactionMoveUnitId = "";
+                Trace("Reaction", "Cancel triggering command", actor?.name ?? "Triggering unit", "Reaction resolution left the actor downed or dead.", TriggerName(trigger) + " is CANCELED.");
                 AddEvent(string.Format("{0}'s {1} is canceled by the Reaction.", actor?.name ?? "The unit", TriggerName(trigger)), "reaction"); Save(); return;
             }
             state.reactionIndex++;
@@ -560,6 +580,7 @@ namespace DownRange.Tactical
                 state.reactionIndex++;
             }
             state.pendingTrigger = null; state.reactionQueue = null; state.reactionIndex = 0; state.reactionMoveUnitId = "";
+            Trace("Reaction", "Close interrupt window", actor.name + " · " + TriggerName(trigger), "All eligible saved Reactions resolved or passed.", "Revalidate and resolve the original trigger.");
             ResolvePendingTrigger(trigger);
         }
 
@@ -570,7 +591,8 @@ namespace DownRange.Tactical
             {
                 var path = MovementPath(actor, actor.x, actor.y, trigger.destinationX, trigger.destinationY);
                 var allowance = TacticalRules.MovementAllowance(actor, false) / (actor.sprint ? 2f : 1f);
-                if (!path.valid || path.cost > allowance + .05f) { notice = path.valid ? "The interrupted movement path is no longer within allowance." : path.reason; AddEvent(actor.name + " cannot complete its interrupted Move.", "reaction"); Save(); return; }
+                if (!path.valid || path.cost > allowance + .05f) { Trace("Movement", "Post-Reaction Move revalidation", actor.name, path.valid ? string.Format("Recomputed path cost {0:0.00}\" > allowance {1:0.00}\"", path.cost, allowance) : path.reason, "CANCELED after Reactions."); notice = path.valid ? "The interrupted movement path is no longer within allowance." : path.reason; AddEvent(actor.name + " cannot complete its interrupted Move.", "reaction"); Save(); return; }
+                Trace("Movement", "Post-Reaction Move revalidation", actor.name, string.Format("Recomputed cost {0:0.00}\" <= allowance {1:0.00}\"", path.cost, allowance), "Still legal; resolve movement.");
                 ExecuteMovement(actor, trigger.destinationX, trigger.destinationY, path, false); return;
             }
             if (trigger.kind == "fire" || trigger.kind == "suppress") { ResolveFire(actor, Unit(trigger.targetId), trigger.kind == "suppress", false); return; }
@@ -604,6 +626,9 @@ namespace DownRange.Tactical
             }
             if (ActionButton(losTool ? "LOS TOOL · ON" : "LOS TOOL · OFF", "Measure sight lines and tabletop distance between any two points. Shortcut: L.", 27)) ToggleLosTool();
             state.impairedMovement = GUILayout.Toggle(state.impairedMovement, new GUIContent("Impaired movement", "Use for mud, climbing, crawling, or other terrain that reduces movement."));
+            var zonesVisible = state.showMissionZones;
+            state.showMissionZones = GUILayout.Toggle(state.showMissionZones, new GUIContent("Show mission zones", "Show or hide extraction and other mission-zone boundaries. Hidden by default; scoring remains active either way."));
+            if (zonesVisible != state.showMissionZones) { Trace("Interface", "Toggle mission-zone overlay", "Show mission zones = " + zonesVisible, "Player changed the display-only overlay setting.", state.showMissionZones ? "Mission zones visible; rules and scoring unchanged." : "Mission zones hidden; rules and scoring unchanged."); audio.Play(SoundCue.Click); Save(); }
             GUILayout.Space(8); DrawActionMenu(unit, target);
             GUILayout.Space(8); DrawTurnGuide(unit, target);
             GUILayout.Space(5); GUILayout.Label(notice, smallStyle); GUILayout.EndScrollView(); GUILayout.EndArea();
@@ -653,13 +678,13 @@ namespace DownRange.Tactical
             var reactionReason = canAct && !unit.reaction ? string.Empty : unit.reaction ? "This unit is already holding a reaction." : generalReason;
             if (ActionMenuButton(Describe("HOLD REACTION", "Reserve an attack for the enemy turn.", "1 action", "Effective unit with an unused action.",
                 "The unit may Fire during the opposing side's turn.", string.IsNullOrEmpty(reactionReason), reactionReason)))
-            { unit.actionUsed = true; unit.reaction = true; AddEvent(unit.name + " holds a reaction.", "action"); audio.Play(SoundCue.Reaction); Save(); }
+            { unit.actionUsed = true; unit.reaction = true; Trace("Action", "Hold Reaction", unit.name + " · effective · unused Action", "Spend the Action now; exact Reaction type remains undeclared until an enemy trigger.", "Saved Reaction available until this unit's next turn."); AddEvent(unit.name + " holds a reaction.", "action"); audio.Play(SoundCue.Reaction); Save(); }
 
             var sprintReason = !canAct ? generalReason : unit.kind != "troop" ? "Only troop units may sprint." : unit.sprint ? "This unit is already sprinting." : string.Empty;
             if (ActionMenuButton(Describe("SPRINT", "Take a second Move this turn.", "1 action", "Active troop unit with an unused action.",
                 "Allows two separate Moves this turn; each path uses the normal Move rating and terrain costs. A saved Reaction may instead Sprint from the interrupt prompt.", string.IsNullOrEmpty(sprintReason), sprintReason)))
             {
-                unit.actionUsed = true; unit.sprint = true; AddEvent(unit.name + " sacrifices its action for a second Move.", "move");
+                unit.actionUsed = true; unit.sprint = true; Trace("Action", "Sprint", unit.name + " · troop · unused Action", "Spend Action to permit a second distinct Move; each Move retains the normal movement allowance and terrain costs.", "Second Move enabled for the current turn."); AddEvent(unit.name + " sacrifices its action for a second Move.", "move");
                 audio.Play(SoundCue.Sprint); Save();
             }
 
@@ -705,6 +730,7 @@ namespace DownRange.Tactical
             if (GUILayoutUtility.GetLastRect().Contains(Event.current.mousePosition)) hoveredActionHelp = detail;
             if (!clicked) return false;
             if (action.available) return true;
+            Trace("Command validation", action.title, "Cost " + action.cost + " · requires " + action.requirements, action.unavailable, "REJECTED before resolution.");
             notice = action.unavailable; audio.Play(SoundCue.Error); return false;
         }
 
@@ -769,9 +795,18 @@ namespace DownRange.Tactical
             BattleLosResult los = null;
             if (terrain != null && terrain.Ready && attacker != null && target != null) { los = SelectedLos(attacker, target); state.cover = los.classification; }
             var result = TacticalRules.Attack(attacker, target, weapon, request.board, state.round, state.cover, suppress, dice, CanAimSuppression(los));
-            if (!result.valid) { notice = result.reason; audio.Play(SoundCue.Error); return; }
+            var attackInputs = string.Format("{0} → {1} · {2} · range {3:0.00}\"/{4:0.00}\" · LOS {5}", attacker?.name ?? "none", target?.name ?? "none", weapon?.name ?? "no weapon", attacker != null && target != null ? TacticalRules.Distance(attacker, target, request.board) : 0f, weapon?.range ?? 0f, state.cover);
+            if (!result.valid) { Trace(suppress ? "Suppression" : "Attack", suppress ? "Declare Suppression" : "Declare Fire", attackInputs, result.reason, "REJECTED."); notice = result.reason; audio.Play(SoundCue.Error); return; }
             audio.Play(suppress ? SoundCue.Suppress : SoundCue.Fire);
             if (reactionResolution) attacker.reaction = false; else ConsumeAction(attacker); RaiseAlarm(attacker.name + " fired a weapon.");
+            var advantages = new List<string>(); var disadvantages = new List<string>();
+            if (!target.moved) advantages.Add("target did not move"); if (target.observedBy == attacker.side) advantages.Add("fires observation");
+            if (state.cover == "partial") disadvantages.Add("partial cover/concealment"); if (attacker.status == "injured") disadvantages.Add("attacker injured"); if (attacker.suppressed) disadvantages.Add("attacker suppressed");
+            var modifierText = string.Format("Advantage sources [{0}] · Disadvantage sources [{1}] · final mode {2}", advantages.Count == 0 ? "none" : string.Join(", ", advantages), disadvantages.Count == 0 ? "none" : string.Join(", ", disadvantages), result.skill.mode > 0 ? "Advantage" : result.skill.mode < 0 ? "Disadvantage" : "normal (none or canceled)");
+            var attackMath = modifierText + string.Format(" · Skill {0} vs Difficulty {1}", RollText(result.skill), weapon.difficulty);
+            if (!suppress && result.hit) attackMath += string.Format(" · Damage {0} vs Defense {1}", RollText(result.damage), result.defense);
+            var attackOutcome = !result.hit ? "MISS" : suppress ? "SUCCESS: target suppressed" : result.casualty ? "SUCCESS: casualty; target downed" : "HIT: damage did not equal or exceed Defense";
+            Trace(suppress ? "Suppression" : "Attack", reactionResolution ? "Resolve Reaction Fire" : suppress ? "Resolve Suppression" : "Resolve Fire", attackInputs, attackMath, attackOutcome);
             var reactionText = reactionResolution ? " as a Reaction before the triggering action" : "";
             if (!result.hit) AddEvent(string.Format("{0} misses {1} (skill {2} vs {3}).", attacker.name, target.name, RollText(result.skill), weapon.difficulty), "miss");
             else if (suppress) { target.suppressed = true; target.suppressedBySide = attacker.side; AddEvent(attacker.name + " suppresses " + target.name + reactionText + ".", "suppress"); }
@@ -782,6 +817,7 @@ namespace DownRange.Tactical
 
         void RequestRadioObservation(UnitData unit, UnitData target)
         {
+            Trace("Signal", "Declare fires observation", string.Format("Observer {0} · target {1}", unit?.name ?? "none", target?.name ?? "none"), "Action legality and LOS checked; opposing saved Reactions are offered first.", "PENDING reaction check.");
             if (BeginReactionWindow(new PendingTriggerData { kind = "radio", actorId = unit?.id, targetId = target?.id })) return;
             ResolveRadioObservation(unit, target);
         }
@@ -790,11 +826,13 @@ namespace DownRange.Tactical
         {
             if (!Effective(unit) || !Effective(target)) return;
             ConsumeAction(unit); target.observedBy = unit.side; target.observedRound = state.round;
+            Trace("Signal", "Fires observation", string.Format("Observer {0} · target {1} · radio equipped · LOS confirmed", unit.name, target.name), "Spend 1 Action; mark target observed by " + unit.side.ToUpperInvariant() + " until the observer's next turn.", "Friendly attacks against the target receive Advantage while the mark remains.");
             AddEvent(unit.name + " observes " + target.name + " for friendly fires.", "signal"); audio.Play(SoundCue.Radio); Save();
         }
 
         void RequestTreatment(UnitData medic, UnitData target)
         {
+            Trace("Medical", "Declare focused casualty treatment", string.Format("Medic {0} · casualty {1}", medic?.name ?? "none", target?.name ?? "none"), "Training, adjacency, no prior movement, and Action legality checked; opposing saved Reactions resolve first.", "PENDING reaction check.");
             if (BeginReactionWindow(new PendingTriggerData { kind = "treat", actorId = medic?.id, targetId = target?.id })) return;
             ResolveTreatment(medic, target);
         }
@@ -806,6 +844,7 @@ namespace DownRange.Tactical
             if (target == null || target.side != medic.side || target.status != "downed") { notice = "Select a downed friendly casualty."; audio.Play(SoundCue.Error); return; }
             var range = TacticalRules.Distance(medic, target, request.board); if (range > 1.5f) { notice = string.Format("Move adjacent first ({0:0.0}\" away).", range); audio.Play(SoundCue.Error); return; }
             ConsumeAction(medic); medic.focused = true; medic.moved = true; medic.movesMade = 1; DieRoll roll; target.status = TacticalRules.Medicine(medic, dice, out roll);
+            Trace("Medical", "Focused casualty treatment", string.Format("Medic {0} medical Skill d{1} · casualty {2} · range {3:0.00}\" · medic status {4}", medic.name, medic.medicalSkill, target.name, range, medic.status), string.Format("Medical Skill {0}; full-turn Focus; Table 2-2 bands 1–2 dead, 3–4 downed, 5–7 injured, 8+ healthy", RollText(roll)), target.name + " becomes " + target.status.ToUpperInvariant() + ".");
             AddEvent(string.Format("{0} treats {1}: {2} — {3}.", medic.name, target.name, RollText(roll), target.status), "medical"); audio.Play(SoundCue.Medical); Save();
         }
 
@@ -818,6 +857,7 @@ namespace DownRange.Tactical
         {
             if (state.alarm) return;
             state.alarm = true; state.alarmReason = reason;
+            Trace("Alarm", "Resolve alarm state", "Current alarm = clear", reason, "ALARM RAISED; avoid-alarm objective will fail.");
             AddEvent("ALARM RAISED: " + reason, "alarm"); audio.Play(SoundCue.Alarm);
         }
 
@@ -828,11 +868,15 @@ namespace DownRange.Tactical
             var maximum = objective.radius > 0f ? objective.radius : float.MaxValue; var difficulty = objective.difficulty > 0 ? objective.difficulty : 4;
             foreach (var observer in state.units.Where(unit => unit.side != subject.side && Effective(unit)).OrderBy(unit => TacticalRules.Distance(unit, subject, request.board)))
             {
-                var distance = TacticalRules.Distance(observer, subject, request.board); if (distance > maximum) continue;
+                var distance = TacticalRules.Distance(observer, subject, request.board);
+                if (distance > maximum) { Trace("Detection", "Check observer range", string.Format("Observer {0} · subject {1} · {2:0.00}\"", observer.name, subject.name, distance), string.Format("{0:0.00}\" > mission detection radius {1:0.00}\"", distance, maximum), "No detection attempt."); continue; }
                 var los = terrain != null && terrain.Ready ? terrain.EvaluateLineOfSight(observer, subject) : new BattleLosResult { classification = "open" };
-                var detection = TacticalRules.Detection(observer, los.classification, difficulty, dice); if (!detection.attempted) continue;
-                if (los.classification == "open" && detection.detected) { RaiseAlarm(string.Format("{0} confirmed {1} during {2} at {3:0.0}\".", observer.name, subject.name, activity, distance)); return; }
-                if (detection.detected) { RaiseAlarm(string.Format("{0} detected partially concealed {1} during {2} (Skill {3} vs Difficulty {4}).", observer.name, subject.name, activity, RollText(detection.skill), difficulty)); return; }
+                var detection = TacticalRules.Detection(observer, los.classification, difficulty, dice);
+                if (!detection.attempted) { Trace("Detection", "Check enemy observation", string.Format("Observer {0} · subject {1} · {2:0.00}\" · blocker {3}", observer.name, subject.name, distance, los.blocker), "Total concealment/blocked LOS prevents a detection test.", "UNDETECTED by this observer."); continue; }
+                if (los.classification == "open" && detection.detected) { Trace("Detection", "Check enemy observation", string.Format("Observer {0} · subject {1} · {2:0.00}\" · open LOS", observer.name, subject.name, distance), "Open LOS inside the mission detection radius confirms the subject.", "DETECTED."); RaiseAlarm(string.Format("{0} confirmed {1} during {2} at {3:0.0}\".", observer.name, subject.name, activity, distance)); return; }
+                var detectionMath = string.Format("Partial concealment: Skill {0} with Disadvantage vs Difficulty {1}", RollText(detection.skill), difficulty);
+                if (detection.detected) { Trace("Detection", "Check enemy observation", string.Format("Observer {0} · subject {1} · {2:0.00}\" · partial LOS", observer.name, subject.name, distance), detectionMath, "DETECTED."); RaiseAlarm(string.Format("{0} detected partially concealed {1} during {2} (Skill {3} vs Difficulty {4}).", observer.name, subject.name, activity, RollText(detection.skill), difficulty)); return; }
+                Trace("Detection", "Check enemy observation", string.Format("Observer {0} · subject {1} · {2:0.00}\" · partial LOS", observer.name, subject.name, distance), detectionMath, "UNDETECTED by this observer.");
                 AddEvent(string.Format("{0} fails to detect partially concealed {1} during {2} (Skill {3} vs Difficulty {4}).", observer.name, subject.name, activity, RollText(detection.skill), difficulty), "detection");
             }
         }
@@ -888,7 +932,8 @@ namespace DownRange.Tactical
 
         void RequestObjectiveAction(UnitData unit, ObjectiveData objective, UnitData target)
         {
-            var reason = ObjectiveActionReason(unit, target, objective); if (!string.IsNullOrEmpty(reason)) { notice = reason; audio.Play(SoundCue.Error); return; }
+            var reason = ObjectiveActionReason(unit, target, objective); if (!string.IsNullOrEmpty(reason)) { Trace("Objective", objective?.actionLabel ?? "Mission action", unit?.name ?? "none", reason, "REJECTED."); notice = reason; audio.Play(SoundCue.Error); return; }
+            Trace("Objective", "Declare " + (objective.actionLabel ?? "mission action"), string.Format("Actor {0} · target {1} · current progress {2}/{3}", unit.name, target?.name ?? objective.text, objective.progress, objective.requiredProgress), "Action requirements passed; opposing saved Reactions resolve first.", "PENDING reaction check.");
             if (BeginReactionWindow(new PendingTriggerData { kind = "objective", actorId = unit.id, targetId = target?.id, objectiveId = objective.id })) return;
             ResolveObjectiveAction(unit, objective, target);
         }
@@ -896,24 +941,27 @@ namespace DownRange.Tactical
         void ResolveObjectiveAction(UnitData unit, ObjectiveData objective, UnitData target)
         {
             if (unit == null || objective == null || !Effective(unit)) return;
-            var reason = ObjectiveActionReason(unit, target, objective); if (!string.IsNullOrEmpty(reason)) { notice = reason; audio.Play(SoundCue.Error); return; }
+            var reason = ObjectiveActionReason(unit, target, objective); if (!string.IsNullOrEmpty(reason)) { Trace("Objective", objective.actionLabel, unit.name, "Post-Reaction revalidation: " + reason, "CANCELED."); notice = reason; audio.Play(SoundCue.Error); return; }
             ConsumeAction(unit);
             if (objective.difficulty > 0)
             {
                 BattleLosResult los; ObjectiveLosVisible(unit, objective, target, out los); var roll = dice.Skill(unit.skill, los.classification == "partial" ? -1 : 0);
-                if (roll.result < objective.difficulty) { AddEvent(string.Format("{0} fails to identify {1} (Skill {2} vs Difficulty {3}).", unit.name, target?.name ?? "the objective", RollText(roll), objective.difficulty), "objective"); audio.Play(SoundCue.Error); Save(); return; }
+                if (roll.result < objective.difficulty) { Trace("Objective", objective.actionLabel, string.Format("{0} · target {1} · LOS {2} · Skill d{3}", unit.name, target?.name ?? objective.text, los.classification, unit.skill), string.Format("Skill {0} vs static Difficulty {1}{2}", RollText(roll), objective.difficulty, los.classification == "partial" ? " with Disadvantage" : ""), "FAILED; no objective progress."); AddEvent(string.Format("{0} fails to identify {1} (Skill {2} vs Difficulty {3}).", unit.name, target?.name ?? "the objective", RollText(roll), objective.difficulty), "objective"); audio.Play(SoundCue.Error); Save(); return; }
+                Trace("Objective", objective.actionLabel, string.Format("{0} · target {1} · LOS {2} · Skill d{3}", unit.name, target?.name ?? objective.text, los.classification, unit.skill), string.Format("Skill {0} vs static Difficulty {1}{2}", RollText(roll), objective.difficulty, los.classification == "partial" ? " with Disadvantage" : ""), "PASSED; apply objective progress.");
             }
             if (objective.type == "observe-zone")
             {
                 if (objective.uninterrupted && objective.lastProgressRound > 0 && objective.lastProgressRound != state.round - 1) objective.progress = 0;
                 objective.progress = Mathf.Min(Mathf.Max(1, objective.requiredProgress), objective.progress + 1); objective.lastProgressRound = state.round;
                 state.observationTurns = objective.progress;
+                Trace("Objective", objective.actionLabel, string.Format("{0} within {1:0.0}\" objective radius · LOS confirmed · once per round", unit.name, objective.radius), string.Format("Progress {0} → {1}; required {2}; uninterrupted={3}", objective.progress - 1, objective.progress, objective.requiredProgress, objective.uninterrupted), objective.progress >= objective.requiredProgress ? "OBJECTIVE COMPLETE" : "Progress recorded for Round " + state.round + ".");
                 AddEvent(string.Format("{0} advances {1} ({2}/{3}).", unit.name, objective.text, objective.progress, Mathf.Max(1, objective.requiredProgress)), "objective");
             }
             else if (objective.type == "identify-units")
             {
                 var identified = new List<string>(objective.identifiedUnitIds ?? new string[0]); if (!identified.Contains(target.id)) identified.Add(target.id);
                 objective.identifiedUnitIds = identified.ToArray(); objective.progress = identified.Count;
+                Trace("Objective", objective.actionLabel, "Identified target " + target.name, string.Format("Unique identified targets = {0}; required = {1}", objective.progress, objective.requiredProgress), objective.progress >= objective.requiredProgress ? "OBJECTIVE COMPLETE" : "Identification recorded.");
                 AddEvent(string.Format("{0} identifies {1} for {2} ({3}/{4}).", unit.name, target.name, objective.text, objective.progress, Mathf.Max(1, objective.requiredProgress)), "objective");
             }
             objective.complete = objective.progress >= Mathf.Max(1, objective.requiredProgress);
@@ -922,14 +970,16 @@ namespace DownRange.Tactical
 
         void EndTurn()
         {
-            if (state.pendingTrigger != null) { notice = "Resolve or pass the current Reaction interrupt before ending the turn."; audio.Play(SoundCue.Error); return; }
+            if (state.pendingTrigger != null) { Trace("Turn", "End side turn", state.activeSide.ToUpperInvariant(), "A Reaction interrupt remains unresolved.", "REJECTED."); notice = "Resolve or pass the current Reaction interrupt before ending the turn."; audio.Play(SoundCue.Error); return; }
             var side = state.activeSide;
             EvaluateDetectionForSide(side);
             foreach (var objective in state.objectives.Where(item => item.type == "observe-zone" && item.uninterrupted && !item.complete && item.side == side && item.progress > 0 && item.lastProgressRound < state.round))
             {
-                objective.progress = 0; state.observationTurns = 0; AddEvent(objective.text + " loses its uninterrupted progress.", "objective");
+                Trace("Objective", "Check uninterrupted progress", objective.text, string.Format("Last progress Round {0}; current Round {1}; required observation was not made.", objective.lastProgressRound, state.round), "Progress resets to 0."); objective.progress = 0; state.observationTurns = 0; AddEvent(objective.text + " loses its uninterrupted progress.", "objective");
             }
-            foreach (var unit in state.units.Where(item => item.side == side && Effective(item))) if (!unit.actionUsed) unit.reaction = true;
+            var automaticReactions = state.units.Where(item => item.side == side && Effective(item) && !item.actionUsed).ToArray();
+            foreach (var unit in automaticReactions) unit.reaction = true;
+            Trace("Turn", "End side turn", side.ToUpperInvariant(), automaticReactions.Length == 0 ? "Every effective unit used its Action." : "Unused Actions become saved Reactions: " + string.Join(", ", automaticReactions.Select(unit => unit.name)), state.firstSideFinished ? "Complete the round." : "Pass play to the opposing side.");
             if (!state.firstSideFinished) { state.firstSideFinished = true; StartSide(side == "blue" ? "red" : "blue"); }
             else if (state.round >= Mathf.Max(1, request.mission.durationTurns))
             {
@@ -949,7 +999,7 @@ namespace DownRange.Tactical
 
         void FinishBattle(bool deadline = false)
         {
-            if (state.pendingTrigger != null) { notice = "Resolve or pass the current Reaction interrupt before ending the mission."; audio.Play(SoundCue.Error); return; }
+            if (state.pendingTrigger != null) { Trace("Mission scoring", "End Mission", "Pending " + TriggerName(state.pendingTrigger), "A Reaction interrupt must resolve before mission scoring.", "REJECTED."); notice = "Resolve or pass the current Reaction interrupt before ending the mission."; audio.Play(SoundCue.Error); return; }
             if (deadline) state.endedByDeadline = true;
             foreach (var objective in state.objectives)
             {
@@ -959,14 +1009,17 @@ namespace DownRange.Tactical
                 else if (objective.type == "extract-force") { objective.progress = ExtractedCount(objective); objective.complete = force.Length > 0 && (float)objective.progress / force.Length >= (objective.threshold > 0f ? objective.threshold : .75f); }
                 else if (objective.type == "avoid-alarm") objective.complete = !state.alarm;
                 else if (objective.type == "observe-zone" || objective.type == "identify-units") objective.complete = objective.progress >= Mathf.Max(1, objective.requiredProgress);
+                var objectiveMath = objective.type == "extract-force" ? string.Format("{0} effective deployed units extracted / {1} starting units; threshold {2:0}%", objective.progress, force.Length, objective.threshold > 0f ? objective.threshold : .75f) : objective.type == "avoid-alarm" ? "Alarm state = " + (state.alarm ? "raised" : "clear") : objective.type == "force-effective" ? string.Format("{0}/{1} effective; threshold {2:0}%", force.Count(Effective), force.Length, objective.threshold > 0f ? objective.threshold : .75f) : string.Format("Progress {0}/{1}", objective.progress, Mathf.Max(1, objective.requiredProgress));
+                Trace("Mission scoring", objective.text, objective.type + " · " + objective.points + " point(s)", objectiveMath, objective.complete ? "COMPLETE" : "INCOMPLETE");
             }
             var blue = state.units.Where(unit => unit.side == "blue").ToArray();
             var scoreAvailable = state.objectives.Sum(objective => objective.points); var scoreEarned = state.objectives.Where(objective => objective.complete).Sum(objective => objective.points);
             var outcome = scoreAvailable <= 0 ? "Mission complete" : scoreEarned == scoreAvailable ? "Decisive success" : scoreEarned * 2 >= scoreAvailable ? "Partial success" : "Mission setback";
+            Trace("Mission scoring", "Compute final outcome", string.Format("Earned {0} of {1} objective points · Round {2} · deadline={3}", scoreEarned, scoreAvailable, state.round, state.endedByDeadline), "All points = Decisive success; at least half = Partial success; below half = Mission setback.", outcome.ToUpperInvariant());
             var result = new BattleResult
             {
                 requestId = request.requestId, resultId = Guid.NewGuid().ToString("N"), completedAt = DateTime.UtcNow.ToString("O"), missionNumber = request.mission.number,
-                rounds = state.round, alarm = state.alarm, alarmReason = state.alarmReason, endedByDeadline = state.endedByDeadline, observationTurns = state.observationTurns, events = state.events,
+                rounds = state.round, alarm = state.alarm, alarmReason = state.alarmReason, endedByDeadline = state.endedByDeadline, observationTurns = state.observationTurns, events = state.events, calculations = state.calculations,
                 scoreEarned = scoreEarned, scoreAvailable = scoreAvailable, outcome = outcome, terrainLocationId = request.mission.locationId,
                 units = state.units.Select(unit => new UnitResult { id = unit.id, x = unit.x, y = unit.y, facing = unit.facing, status = unit.status }).ToArray(),
                 objectives = state.objectives.Select(objective => new ObjectiveResult { id = objective.id, complete = objective.complete }).ToArray(),
@@ -977,6 +1030,26 @@ namespace DownRange.Tactical
         void AddEvent(string text, string kind)
         {
             var events = new List<BattleEvent>(state.events ?? new BattleEvent[0]) { new BattleEvent { round = state.round, text = text, kind = kind } }; state.events = events.ToArray(); notice = text;
+        }
+        void Trace(string category, string command, string inputs, string computation, string outcome)
+        {
+            if (state == null) return;
+            var calculations = new List<RuleCalculation>(state.calculations ?? new RuleCalculation[0]);
+            calculations.Add(new RuleCalculation
+            {
+                sequence = state.nextCalculationSequence <= 0 ? calculations.Count + 1 : state.nextCalculationSequence,
+                round = state.round, side = state.activeSide ?? "", category = category ?? "RULE", command = command ?? "Computation",
+                inputs = inputs ?? "", computation = computation ?? "", outcome = outcome ?? ""
+            });
+            state.nextCalculationSequence = calculations[calculations.Count - 1].sequence + 1; state.calculations = calculations.ToArray(); Save();
+        }
+        string TraceText(RuleCalculation item)
+        {
+            return string.Format("#{0} · ROUND {1} · {2} · {3}\n{4}\nINPUTS: {5}\nCOMPUTATION: {6}\nOUTCOME: {7}", item.sequence, item.round, (item.side ?? "").ToUpperInvariant(), (item.category ?? "RULE").ToUpperInvariant(), item.command, item.inputs, item.computation, item.outcome);
+        }
+        string CompleteTraceText()
+        {
+            var ordered = (state.calculations ?? new RuleCalculation[0]).OrderBy(item => item.sequence); return string.Join("\n\n", ordered.Select(TraceText));
         }
         void Save() { if (state == null || string.IsNullOrEmpty(statePath)) return; state.rollCount = dice?.RollCount ?? state.rollCount; File.WriteAllText(statePath, JsonUtility.ToJson(state, true)); }
 
@@ -1031,14 +1104,40 @@ namespace DownRange.Tactical
             GUILayout.Space(8); GUILayout.Label("4  REACT OR END", titleStyle);
             GUILayout.Label("Hold Reaction deliberately, or simply end the turn: every effective unit that has not acted automatically holds one. When an enemy declares a Move or supported action, Unity pauses it and opens the Reaction interrupt. Fire or Sprint resolves first; Pass preserves the Reaction for a later trigger. If reaction fire downs the acting unit, its triggering action is canceled.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("RECONNAISSANCE", titleStyle);
-            GUILayout.Label("The marked friendly-edge band is the extraction zone. A unit counts only after it first deploys beyond that band and later returns effective. Open enemy LOS confirms detection; partial concealment requires the observing enemy to pass Skill with Disadvantage against the mission Difficulty. Firing always raises the alarm. The mission scores automatically after both sides finish the final round.", guideStyle);
+            GUILayout.Label("The optional Show mission zones toggle reveals the friendly-edge extraction boundary; it is hidden by default. A unit counts only after it first deploys beyond that boundary and later returns effective. Open enemy LOS confirms detection; partial concealment requires the observing enemy to pass Skill with Disadvantage against the mission Difficulty. Firing always raises the alarm. The mission scores automatically after both sides finish the final round.", guideStyle);
             GUILayout.Space(8); GUILayout.Label("CAMERA", titleStyle);
             GUILayout.Label("WASD or the arrow keys pan by fixed map direction: W north, S south, A west, and D east, regardless of camera rotation. Hold the middle mouse button and drag to rotate or tilt/skew; use the mouse wheel to zoom.", guideStyle);
-            GUILayout.Space(10); GUILayout.Box("CURRENT SIDE: " + state.activeSide.ToUpperInvariant() + "    ·    ROUND " + state.round + "    ·    L: LOS tool    ·    Space: end turn    ·    F1: help", guideStyle);
+            GUILayout.Space(10); GUILayout.Box("CURRENT SIDE: " + state.activeSide.ToUpperInvariant() + "    ·    ROUND " + state.round + "    ·    L: LOS tool    ·    Space: end turn    ·    F1: help    ·    F2: rules trace", guideStyle);
             GUILayout.Space(8); GUILayout.Label("Tip: action details appear both beneath the menu and beside the mouse pointer. Unavailable buttons can also be clicked to place their blocking reason in STATUS.", smallStyle);
             GUILayout.FlexibleSpace();
             var enabled = audio.Enabled; var next = GUILayout.Toggle(enabled, new GUIContent(" Tactical sound", "Enable or mute the procedural offline sound cues.")); if (next != enabled) { audio.Enabled = next; audio.Play(SoundCue.Click); }
             GUILayout.EndArea();
+        }
+
+        void DrawRulesTraceOverlay()
+        {
+            GUI.depth = -200;
+            var shade = GUI.color; GUI.color = new Color(0f, 0f, 0f, .78f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), pixel); GUI.color = shade;
+            var width = Mathf.Min(980f, Screen.width - 40f); var height = Mathf.Min(740f, Screen.height - 40f);
+            var rect = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height); GUI.Box(rect, GUIContent.none, panelStyle);
+            GUILayout.BeginArea(new Rect(rect.x + 22f, rect.y + 18f, rect.width - 44f, rect.height - 36f));
+            GUILayout.BeginHorizontal(); GUILayout.Label("RULES COMPUTATION TRACE", titleStyle); GUILayout.FlexibleSpace();
+            if (GUILayout.Button(traceNewestFirst ? "NEWEST FIRST" : "OLDEST FIRST", GUILayout.Width(118), GUILayout.Height(30))) { traceNewestFirst = !traceNewestFirst; traceScroll = Vector2.zero; }
+            if (GUILayout.Button(new GUIContent("COPY ALL", "Copy the complete chronological trace to the system clipboard."), GUILayout.Width(88), GUILayout.Height(30))) { GUIUtility.systemCopyBuffer = CompleteTraceText(); notice = "Complete rules trace copied to the clipboard."; audio.Play(SoundCue.Click); }
+            if (GUILayout.Button(new GUIContent("CLOSE  ×", "Close this tab. Shortcut: F2 or Escape."), GUILayout.Width(92), GUILayout.Height(30))) { showRulesTrace = false; audio.Play(SoundCue.Click); }
+            GUILayout.EndHorizontal();
+            var items = state.calculations ?? new RuleCalculation[0];
+            GUILayout.Label(items.Length == 0 ? "No computations recorded yet. New commands will appear here." : items.Length + " computations recorded in the persistent battle save. Inputs, modifiers, dice, thresholds, and rulings are retained in sequence.", guideStyle);
+            GUILayout.Space(8); traceScroll = GUILayout.BeginScrollView(traceScroll);
+            var ordered = traceNewestFirst ? items.OrderByDescending(item => item.sequence) : items.OrderBy(item => item.sequence);
+            foreach (var item in ordered)
+            {
+                GUILayout.BeginVertical(tooltipStyle); GUILayout.Label(string.Format("#{0:000}  ·  R{1}  ·  {2}  ·  {3}", item.sequence, item.round, (item.side ?? "").ToUpperInvariant(), (item.category ?? "RULE").ToUpperInvariant()), smallStyle);
+                GUILayout.Label(item.command, titleStyle); if (!string.IsNullOrEmpty(item.inputs)) GUILayout.Label("INPUTS  " + item.inputs, guideStyle);
+                if (!string.IsNullOrEmpty(item.computation)) GUILayout.Label("COMPUTATION  " + item.computation, guideStyle);
+                if (!string.IsNullOrEmpty(item.outcome)) GUILayout.Label("RULING  " + item.outcome, guideStyle); GUILayout.EndVertical(); GUILayout.Space(7);
+            }
+            GUILayout.EndScrollView(); GUILayout.EndArea();
         }
 
         void DrawLine(Vector2 start, Vector2 end, Color color, float width)

@@ -152,6 +152,7 @@ function applyBattleResult(state, result) {
     kia: (result.casualties || []).filter(item => item.category === 'KIA').length,
     serious: (result.casualties || []).filter(item => item.category !== 'KIA').length,
     effective, starting: blue.length,
+    rulesTrace: (result.calculations || []).map(item => ({ sequence:Number(item.sequence || 0), round:Number(item.round || 0), side:item.side || '', category:item.category || '', command:item.command || '', inputs:item.inputs || '', computation:item.computation || '', outcome:item.outcome || '' })),
     log: (result.events || []).map(event => `R${event.round}: ${event.text}`).join('\n')
   };
   return { state: next, alreadyImported: false };

@@ -47,14 +47,19 @@ namespace DownRange.Tactical
         public ObjectiveData[] objectives; public UnitData[] units;
     }
     [Serializable] public class BattleEvent { public int round; public string text; public string kind; }
+    [Serializable] public class RuleCalculation
+    {
+        public int sequence; public int round; public string side; public string category; public string command;
+        public string inputs; public string computation; public string outcome;
+    }
     [Serializable] public class BattleState
     {
         public string requestId; public int round = 1; public string activeSide = "blue"; public string firstSide = "blue";
         public bool firstSideFinished; public int blueInitiative; public int redInitiative; public bool alarm; public string alarmReason; public bool endedByDeadline;
-        public int observationTurns; public bool impairedMovement; public bool completed; public int rollCount;
+        public int observationTurns; public bool impairedMovement; public bool showMissionZones; public bool completed; public int rollCount;
         public string selectedId; public string targetId; public string cover = "open";
         public PendingTriggerData pendingTrigger; public string[] reactionQueue; public int reactionIndex; public string reactionMoveUnitId;
-        public UnitData[] units; public ObjectiveData[] objectives; public BattleEvent[] events;
+        public UnitData[] units; public ObjectiveData[] objectives; public BattleEvent[] events; public RuleCalculation[] calculations; public int nextCalculationSequence;
     }
     [Serializable] public class UnitResult { public string id; public float x; public float y; public float facing; public string status; }
     [Serializable] public class ObjectiveResult { public string id; public bool complete; }
@@ -64,7 +69,7 @@ namespace DownRange.Tactical
         public int contractVersion = 1; public string requestId; public string resultId; public string completedAt;
         public int missionNumber; public int rounds; public bool alarm; public string alarmReason; public bool endedByDeadline; public int observationTurns;
         public int scoreEarned; public int scoreAvailable; public string outcome; public string terrainLocationId;
-        public UnitResult[] units; public ObjectiveResult[] objectives; public CasualtyResult[] casualties; public BattleEvent[] events;
+        public UnitResult[] units; public ObjectiveResult[] objectives; public CasualtyResult[] casualties; public BattleEvent[] events; public RuleCalculation[] calculations;
     }
     public struct DieRoll { public int first; public int second; public int result; public int mode; }
     public struct AttackResult

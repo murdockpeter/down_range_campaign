@@ -44,6 +44,9 @@ namespace DownRange.Editor
             var triggerJson = JsonUtility.ToJson(new PendingTriggerData { kind = "move", actorId = "a", destinationX = 12f, destinationY = 34f });
             var trigger = JsonUtility.FromJson<PendingTriggerData>(triggerJson);
             Require(trigger != null && trigger.kind == "move" && trigger.actorId == "a" && trigger.destinationY == 34f, "Reaction interrupt state failed to round-trip.");
+            var traceJson = JsonUtility.ToJson(new BattleState { calculations = new[] { new RuleCalculation { sequence = 7, round = 2, side = "blue", category = "Attack", command = "Fire", inputs = "d6", computation = "5 vs 3", outcome = "Hit" } }, nextCalculationSequence = 8 });
+            var traceState = JsonUtility.FromJson<BattleState>(traceJson);
+            Require(traceState.calculations != null && traceState.calculations.Length == 1 && traceState.calculations[0].sequence == 7 && traceState.nextCalculationSequence == 8, "Persistent rules trace failed to round-trip.");
             var spritePath = Path.Combine(Application.dataPath, "StreamingAssets", "Sprites");
             foreach (var name in new[] { "infantry.png", "medic.png", "uas.png" })
             {
