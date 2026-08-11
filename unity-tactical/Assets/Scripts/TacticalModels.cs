@@ -14,7 +14,7 @@ namespace DownRange.Tactical
     }
     [Serializable] public class TerrainCellData { public int x; public int y; public string type; public float elevation; }
     [Serializable] public class BoardInfo { public string mapPath; public float widthInches = 64f; public float heightInches = 42.6667f; public float pixelsPerInch = 24f; public TerrainInfo terrain; }
-    [Serializable] public class BattleSettings { public string mode = "hotseat"; public int seed = 1; public bool autosave = true; }
+    [Serializable] public class BattleSettings { public string mode = "hotseat"; public int seed = 1; public bool autosave = true; public string rulesPdfPath; }
     [Serializable] public class WeaponData
     {
         public string id; public string name; public float range; public int difficulty; public int damageSides;
@@ -50,7 +50,7 @@ namespace DownRange.Tactical
     [Serializable] public class RuleCalculation
     {
         public int sequence; public int round; public string side; public string category; public string command;
-        public string inputs; public string computation; public string outcome;
+        public string inputs; public string computation; public string outcome; public string ruleSection; public int rulePage;
     }
     [Serializable] public class BattleState
     {

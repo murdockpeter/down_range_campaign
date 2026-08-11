@@ -23,7 +23,7 @@
     "productName": "Down Range Campaign Command",
     "directories": { "output": "dist" },
     "files": ["src/**/*", "data/**/*", "docs/**/*", "assets/**/*", "scenarios/**/*", "package.json", "README.md"],
-    "extraResources": [{ "from": "unity-tactical/Build", "to": "unity-tactical", "filter": ["**/*", "!runtime-smoke.log", "!visual-smoke/**/*", "!**/battle-state.json"] }],
+    "extraResources": [{ "from": "unity-tactical/Build", "to": "unity-tactical", "filter": ["**/*", "!runtime-smoke.log", "!visual-smoke/**/*", "!**/battle-state.json"] }, { "from": "docs/official", "to": "docs/official", "filter": ["**/*.pdf"] }],
     "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
     "nsis": {
       "oneClick": false,

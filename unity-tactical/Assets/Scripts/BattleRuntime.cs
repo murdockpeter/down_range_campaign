@@ -137,6 +137,7 @@ namespace DownRange.Tactical
             NormalizeObjectiveDefinitions();
             if (state.calculations == null) state.calculations = new RuleCalculation[0];
             if (state.nextCalculationSequence <= 0) state.nextCalculationSequence = state.calculations.Length == 0 ? 1 : state.calculations.Max(item => item.sequence) + 1;
+            foreach (var item in state.calculations.Where(item => item.rulePage <= 0 && string.IsNullOrEmpty(item.ruleSection))) RuleCitation(item.category, item.command, out item.ruleSection, out item.rulePage);
             foreach (var unit in state.units ?? new UnitData[0]) if (unit.moved && unit.movesMade == 0) unit.movesMade = 1;
             dice = new DeterministicDice(request.settings.seed, state.rollCount);
             LoadMap();
@@ -1034,22 +1035,70 @@ namespace DownRange.Tactical
         void Trace(string category, string command, string inputs, string computation, string outcome)
         {
             if (state == null) return;
+            string section; int page; RuleCitation(category, command, out section, out page);
             var calculations = new List<RuleCalculation>(state.calculations ?? new RuleCalculation[0]);
             calculations.Add(new RuleCalculation
             {
                 sequence = state.nextCalculationSequence <= 0 ? calculations.Count + 1 : state.nextCalculationSequence,
                 round = state.round, side = state.activeSide ?? "", category = category ?? "RULE", command = command ?? "Computation",
-                inputs = inputs ?? "", computation = computation ?? "", outcome = outcome ?? ""
+                inputs = inputs ?? "", computation = computation ?? "", outcome = outcome ?? "", ruleSection = section, rulePage = page
             });
             state.nextCalculationSequence = calculations[calculations.Count - 1].sequence + 1; state.calculations = calculations.ToArray(); Save();
         }
         string TraceText(RuleCalculation item)
         {
-            return string.Format("#{0} · ROUND {1} · {2} · {3}\n{4}\nINPUTS: {5}\nCOMPUTATION: {6}\nOUTCOME: {7}", item.sequence, item.round, (item.side ?? "").ToUpperInvariant(), (item.category ?? "RULE").ToUpperInvariant(), item.command, item.inputs, item.computation, item.outcome);
+            var source = item.rulePage > 0 ? string.Format("\nSOURCE: {0}, PDF page {1}", item.ruleSection, item.rulePage) : "\nSOURCE: Scenario or interface procedure; no universal PDF section.";
+            return string.Format("#{0} · ROUND {1} · {2} · {3}\n{4}\nINPUTS: {5}\nCOMPUTATION: {6}\nOUTCOME: {7}{8}", item.sequence, item.round, (item.side ?? "").ToUpperInvariant(), (item.category ?? "RULE").ToUpperInvariant(), item.command, item.inputs, item.computation, item.outcome, source);
         }
         string CompleteTraceText()
         {
             var ordered = (state.calculations ?? new RuleCalculation[0]).OrderBy(item => item.sequence); return string.Join("\n\n", ordered.Select(TraceText));
+        }
+        void RuleCitation(string category, string command, out string section, out int page)
+        {
+            var kind = (category ?? "").ToLowerInvariant(); var action = (command ?? "").ToLowerInvariant(); section = ""; page = 0;
+            if (kind == "initiative") { section = "Rules 2.2.1 — Initiative"; page = 6; }
+            else if (kind == "movement") { section = action.Contains("sprint") ? "Rules 2.3.1.1 — Sprinting" : "Rules 2.3–2.3.1 — Movement"; page = action.Contains("sprint") ? 7 : 6; }
+            else if (kind == "line of sight") { section = "Rules 2.4.1 — Checking visibility"; page = 7; }
+            else if (kind == "attack") { section = "Rules 2.4–2.6.4 — Attack sequence"; page = 7; }
+            else if (kind == "suppression") { section = "Rules 2.6.5 — Suppression"; page = 11; }
+            else if (kind == "reaction") { section = "Rules 2.2.2.2 — Reactions"; page = 6; }
+            else if (kind == "medical") { section = "Rules 2.8 — Medicine"; page = 11; }
+            else if (kind == "signal") { section = "Rules 5.1 — Signals"; page = 25; }
+            else if (kind == "objective") { section = "Rules 2.7 — Non-attack actions"; page = 11; }
+            else if (kind == "detection") { section = "Rules 2.4.1.1.2 — Concealment; scenario detection test"; page = 8; }
+            else if (kind == "alarm") { section = "Rules 2.4.1.1 — Cover and concealment; scenario alarm rule"; page = 7; }
+            else if (kind == "turn") { section = "Rules 2.2 — Rounds and turns"; page = 6; }
+            else if (kind == "action" && action.Contains("reaction")) { section = "Rules 2.2.2.2 — Reactions"; page = 6; }
+            else if (kind == "action" && action.Contains("sprint")) { section = "Rules 2.3.1.1 — Sprinting"; page = 7; }
+            else if (kind == "command validation")
+            {
+                if (action.Contains("suppress")) { section = "Rules 2.6.5 — Suppression"; page = 11; }
+                else if (action.Contains("fire")) { section = "Rules 2.4–2.6.4 — Attack sequence"; page = 7; }
+                else if (action.Contains("reaction")) { section = "Rules 2.2.2.2 — Reactions"; page = 6; }
+                else if (action.Contains("sprint")) { section = "Rules 2.3.1.1 — Sprinting"; page = 7; }
+                else if (action.Contains("radio")) { section = "Rules 5.1 — Signals"; page = 25; }
+                else if (action.Contains("treat")) { section = "Rules 2.8 — Medicine"; page = 11; }
+                else if (action.Contains("observe") || action.Contains("identify")) { section = "Rules 2.7 — Non-attack actions"; page = 11; }
+                else if (action.Contains("move")) { section = "Rules 2.3 — Movement"; page = 6; }
+            }
+        }
+        string LocalRulesPdfPath()
+        {
+            var configured = request?.settings?.rulesPdfPath; if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;
+            var name = "Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf";
+            var candidates = new[] {
+                Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "official", "DownRangeLatest", name)),
+                Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "docs", "official", "DownRangeLatest", name))
+            };
+            return candidates.FirstOrDefault(File.Exists) ?? "";
+        }
+        void OpenRulesPage(RuleCalculation item)
+        {
+            var pdf = LocalRulesPdfPath();
+            if (item == null || item.rulePage <= 0) { notice = "This computation is scenario-specific and has no universal rules page."; audio.Play(SoundCue.Error); return; }
+            if (string.IsNullOrEmpty(pdf)) { notice = "The authoritative Rules PDF could not be found. Citation: " + item.ruleSection + ", page " + item.rulePage + "."; audio.Play(SoundCue.Error); return; }
+            Application.OpenURL(new Uri(pdf).AbsoluteUri + "#page=" + item.rulePage); notice = "Opening " + item.ruleSection + ", PDF page " + item.rulePage + ". If the viewer ignores page anchors, use this citation manually."; audio.Play(SoundCue.Click);
         }
         void Save() { if (state == null || string.IsNullOrEmpty(statePath)) return; state.rollCount = dice?.RollCount ?? state.rollCount; File.WriteAllText(statePath, JsonUtility.ToJson(state, true)); }
 
@@ -1133,7 +1182,11 @@ namespace DownRange.Tactical
             foreach (var item in ordered)
             {
                 GUILayout.BeginVertical(tooltipStyle); GUILayout.Label(string.Format("#{0:000}  ·  R{1}  ·  {2}  ·  {3}", item.sequence, item.round, (item.side ?? "").ToUpperInvariant(), (item.category ?? "RULE").ToUpperInvariant()), smallStyle);
-                GUILayout.Label(item.command, titleStyle); if (!string.IsNullOrEmpty(item.inputs)) GUILayout.Label("INPUTS  " + item.inputs, guideStyle);
+                GUILayout.BeginHorizontal(); GUILayout.Label(item.command, titleStyle); GUILayout.FlexibleSpace();
+                if (item.rulePage > 0 && GUILayout.Button(new GUIContent("OPEN " + item.ruleSection, "Open the authoritative local Rules PDF at page " + item.rulePage + ". Viewer support for PDF page anchors varies."), GUILayout.Width(310f), GUILayout.Height(27f))) OpenRulesPage(item);
+                GUILayout.EndHorizontal();
+                GUILayout.Label(item.rulePage > 0 ? string.Format("SOURCE  {0} · PDF page {1}", item.ruleSection, item.rulePage) : "SOURCE  Scenario/interface procedure · no universal PDF section", smallStyle);
+                if (!string.IsNullOrEmpty(item.inputs)) GUILayout.Label("INPUTS  " + item.inputs, guideStyle);
                 if (!string.IsNullOrEmpty(item.computation)) GUILayout.Label("COMPUTATION  " + item.computation, guideStyle);
                 if (!string.IsNullOrEmpty(item.outcome)) GUILayout.Label("RULING  " + item.outcome, guideStyle); GUILayout.EndVertical(); GUILayout.Space(7);
             }

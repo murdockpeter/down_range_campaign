@@ -9,7 +9,7 @@ const { resetUnityFiles } = require('./unity-reset.cjs');
 const { activateMissionTwo } = require('./campaign-missions.cjs');
 
 const seedPath = path.join(__dirname, '..', 'data', 'campaign-seed.json');
-const libraryPath = path.join(__dirname, '..', 'docs', 'official');
+const libraryPath = app.isPackaged ? path.join(process.resourcesPath, 'docs', 'official') : path.join(__dirname, '..', 'docs', 'official');
 const docsPath = path.join(__dirname, '..', 'docs');
 const rendererPath = path.join(__dirname, 'renderer');
 const APP_HOST = '127.0.0.1';
@@ -25,6 +25,7 @@ function unityPlayerPath() {
   return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
 }
 function unityExchangeRoot() { return path.join(app.getPath('userData'), 'unity-battles'); }
+function rulesPdfPath() { return path.join(libraryPath, 'DownRangeLatest', 'Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf'); }
 function oneStarSavePath() { return path.join(app.getPath('home'), 'AppData', 'LocalLow', 'Down Range Campaign Command', 'Down Range Tactical Resolver', 'one-star-state-v1.json'); }
 function unityStatus() {
   const player = unityPlayerPath();
@@ -57,10 +58,10 @@ function launchUnityBattle(state) {
       requestId: state.unityBattle.pendingRequestId,
       createdAt: existingRequest.createdAt,
       seed: Number(existingRequest?.settings?.seed || 1),
-      mapPath: ''
+      mapPath: '', rulesPdfPath: rulesPdfPath()
     });
     const objectiveRules = objectives => (objectives || []).map(({id,type,actionLabel,side,x,y,radius,requiredProgress,difficulty,uninterrupted,requiresLos,threshold,edge,depth,targetUnitIds}) => ({id,type,actionLabel,side,x,y,radius,requiredProgress,difficulty,uninterrupted,requiresLos,threshold,edge,depth,targetUnitIds}));
-    const requiresRulesUpgrade = !existingRequest?.board?.terrain || JSON.stringify(objectiveRules(existingRequest.objectives)) !== JSON.stringify(objectiveRules(upgraded.objectives));
+    const requiresRulesUpgrade = !existingRequest?.board?.terrain || !existingRequest?.settings?.rulesPdfPath || JSON.stringify(objectiveRules(existingRequest.objectives)) !== JSON.stringify(objectiveRules(upgraded.objectives));
     if (requiresRulesUpgrade) {
       fs.writeFileSync(pendingPath, JSON.stringify(upgraded, null, 2), 'utf8');
     }
@@ -71,7 +72,7 @@ function launchUnityBattle(state) {
   const requestId = require('crypto').randomUUID();
   const exchange = path.join(unityExchangeRoot(), requestId);
   fs.mkdirSync(exchange, { recursive: true });
-  const request = createBattleRequest(state, { requestId, mapPath: '' });
+  const request = createBattleRequest(state, { requestId, mapPath: '', rulesPdfPath: rulesPdfPath() });
   const requestPath = path.join(exchange, 'battle-request.json');
   fs.writeFileSync(requestPath, JSON.stringify(request, null, 2), 'utf8');
   state.unityBattle ||= {};

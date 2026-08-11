@@ -37,7 +37,7 @@ The scrollable **Unit Actions** panel keeps every tactical choice visible: Move,
 
 Every tactical action has a distinct, procedurally generated offline sound cue: move preparation and movement, firing, suppression, held reactions, sprinting, radio observation, focused medical care, relay observation, LOS measurement, turn changes, impacts, mission completion, and unavailable-action feedback. The **Sound/Muted** control persists its setting locally.
 
-The Unity header includes a persistent **Rules Trace** tab (`F2`). Every accepted or rejected command records its inputs, rules modifiers, path or LOS classifications, dice, thresholds, arithmetic, interrupt ordering, and final ruling. Entries survive battle resume, can be read newest-first or chronologically, can be copied to the clipboard, and are included in the exported tactical result.
+The Unity header includes a persistent **Rules Trace** tab (`F2`). Every accepted or rejected command records its inputs, rules modifiers, path or LOS classifications, dice, thresholds, arithmetic, interrupt ordering, and final ruling. Applicable entries cite the exact authoritative Rules section and PDF page and provide a button that opens the packaged local PDF using its page anchor. Entries survive battle resume, can be read newest-first or chronologically, can be copied to the clipboard, and are included in the exported tactical result.
 
 Mission-zone overlays are hidden by default. Use **Show mission zones** in Unit Control to reveal or hide extraction and other scenario boundaries without changing their scoring.
 

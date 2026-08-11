@@ -32,7 +32,8 @@ if (requestPath && fs.existsSync(requestPath)) {
     requestId: result.state.unityBattle.pendingRequestId || existingRequest.requestId,
     createdAt: existingRequest.createdAt,
     seed: Number(existingRequest.settings?.seed || 1),
-    mapPath: existingRequest.board?.mapPath || ''
+    mapPath: existingRequest.board?.mapPath || '',
+    rulesPdfPath: existingRequest.settings?.rulesPdfPath || path.join(__dirname, '..', 'docs', 'official', 'DownRangeLatest', 'Rules Compressed-278da66fbe36c91eae0252e2830de80b.pdf')
   });
   fs.copyFileSync(requestPath, requestBackupPath);
   fs.writeFileSync(requestTemporaryPath, JSON.stringify(upgradedRequest, null, 2), 'utf8');

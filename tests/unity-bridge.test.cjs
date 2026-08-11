@@ -14,10 +14,11 @@ const tactical = [
 
 test('battle request serializes campaign, board, units, weapons, and deterministic seed', () => {
   const state={...structuredClone(seed),tactical:{units:tactical}};
-  const request=createBattleRequest(state,{requestId:'req-1',createdAt:'2031-09-14T04:30:00Z',seed:42,mapPath:'map.png'});
+  const request=createBattleRequest(state,{requestId:'req-1',createdAt:'2031-09-14T04:30:00Z',seed:42,mapPath:'map.png',rulesPdfPath:'C:/rules.pdf'});
   assert.equal(request.contractVersion,1);
   assert.equal(request.requestId,'req-1');
   assert.equal(request.settings.seed,42);
+  assert.equal(request.settings.rulesPdfPath,'C:/rules.pdf');
   assert.equal(request.board.widthInches,64);
   assert.equal(request.board.terrain.locationId,'hill402');
   assert.equal(request.board.terrain.gridCellSize,1);
@@ -70,7 +71,7 @@ test('Mission 2 launches as Ghost Frequency on the generated relay compound', ()
 
 test('battle result imports objectives and casualties once', () => {
   const state={...structuredClone(seed),tactical:{units:structuredClone(tactical)},unityBattle:{pendingRequestId:'req-1',importedResultIds:[]}};
-  const result={contractVersion:1,requestId:'req-1',resultId:'result-1',completedAt:'2031-09-14T05:10:00Z',rounds:6,alarm:true,alarmReason:'Guard detected Scout.',endedByDeadline:true,observationTurns:2,scoreEarned:2,scoreAvailable:6,outcome:'Mission setback',terrainLocationId:'hill402',units:[{id:'b1',x:5,y:80,facing:63,status:'downed'},{id:'r1',x:70,y:20,facing:180,status:'healthy'}],objectives:[{id:'o1',complete:true}],casualties:[{unitId:'b1',category:'WIA-S'}],events:[{round:2,text:'Contact'}],calculations:[{sequence:1,round:1,side:'blue',category:'Movement',command:'Move',inputs:'8 inches',computation:'6 + 2 = 8',outcome:'Accepted'}]};
+  const result={contractVersion:1,requestId:'req-1',resultId:'result-1',completedAt:'2031-09-14T05:10:00Z',rounds:6,alarm:true,alarmReason:'Guard detected Scout.',endedByDeadline:true,observationTurns:2,scoreEarned:2,scoreAvailable:6,outcome:'Mission setback',terrainLocationId:'hill402',units:[{id:'b1',x:5,y:80,facing:63,status:'downed'},{id:'r1',x:70,y:20,facing:180,status:'healthy'}],objectives:[{id:'o1',complete:true}],casualties:[{unitId:'b1',category:'WIA-S'}],events:[{round:2,text:'Contact'}],calculations:[{sequence:1,round:1,side:'blue',category:'Movement',command:'Move',inputs:'8 inches',computation:'6 + 2 = 8',outcome:'Accepted',ruleSection:'Rules 2.3',rulePage:6}]};
   const imported=applyBattleResult(state,result);
   assert.equal(imported.state.mission.objectives[0].complete,true);
   assert.equal(imported.state.tactical.units[0].facing,63);
@@ -83,6 +84,7 @@ test('battle result imports objectives and casualties once', () => {
   assert.equal(imported.state.mission.tacticalSummary.endedByDeadline,true);
   assert.equal(imported.state.mission.tacticalSummary.rulesTrace[0].category,'Movement');
   assert.equal(imported.state.mission.tacticalSummary.rulesTrace[0].computation,'6 + 2 = 8');
+  assert.equal(imported.state.mission.tacticalSummary.rulesTrace[0].rulePage,6);
   assert.equal(imported.state.tactical.committed,true);
   const replayState=structuredClone(imported.state);replayState.unityBattle.pendingRequestId='req-1';
   assert.equal(applyBattleResult(replayState,result).alreadyImported,true);
